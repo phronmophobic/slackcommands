@@ -68,11 +68,11 @@
   (get-token))
 
 
-
 (defn -get-meta-data
   ([]
    (-get-meta-data (get-token) 1))
   ([token retry-count]
+   
    (try+
     (let [result (client/get "https://us.api.blizzard.com/hearthstone/metadata"
                              {:headers {"Authorization" (str "Bearer " (get-token))}
@@ -96,7 +96,8 @@
                              {:headers {"Authorization" (str "Bearer " token)}
                               :query-params
                               (merge
-                               {"locale" "en_US"}
+                               {"locale" "en_US"
+                                }
                                (if (string? txt)
                                  {"textFilter" txt}
                                  txt))})
@@ -109,10 +110,32 @@
         (refetch-token)
         (-search-cards (get-token) txt (dec retry-count)))))))
 
-(def ten-minutes (* 1000 60 10))
-(def search-cards (memo/ttl -search-cards :ttl/threshold ten-minutes))
+(defn -get-card
+  ([slug]
+   (-get-card (get-token) slug 1))
+  ([token slug retry-count]
+   (try+
+    (let [result (client/get (str "https://us.api.blizzard.com/hearthstone/cards/" slug)
+                             {:headers {"Authorization" (str "Bearer " token)}
+                              :query-params
+                              {"locale" "en_US"}})
+          body (:body result)
+          obj (json/read-json body)]
+      obj)
+    (catch [:status 401] e
+      (println "unauthorized")
+      (when (pos? retry-count)
+        (refetch-token)
+        (-get-card (get-token) slug (dec retry-count)))))))
+
 
 (def one-day (* 1000 86400))
+(def get-card (memo/ttl -get-card :ttl/threshold one-day))
+
+
+(def search-cards (memo/ttl -search-cards :ttl/threshold one-day))
+
+
 (def get-meta-data (memo/ttl -get-meta-data :ttl/threshold one-day))
 
 
@@ -135,44 +158,88 @@
         classes (set (map :slug (:classes metadata)))
         types (set (map :slug (:types metadata)))
         minion-types (set (map :slug (:minionTypes metadata)))
-        keywords (set (map :slug (:keywords metadata)))]
-   (cond-let [x]
+        keywords (set (map :slug (:keywords metadata)))
+        sets (set (map :slug (:sets metadata)))
+        set-groups (into {}
+                         (for [sgroup (:setGroups metadata)]
+                           [(:slug sgroup)
+                            (:cardSets sgroup)]))]
+    
+    (cond-let [x]
 
-     (re-find #"\"([^\"]+)\"" token)
-     {"textFilter" (second x)}
+              (re-find #"\"([^\"]+)\"" token)
+              {"textFilter" (second x)}
 
-     (re-find #"([0-9]{1,2})m" token)
-     {"manaCost" (Integer/parseInt (second x))}
+              (re-find #"([0-9]{1,2})m" token)
+              {"manaCost" (Integer/parseInt (second x))}
 
-     (re-find #"([0-9]{1,2})/([0-9]{1,2})" token)
-     {"attack" (Integer/parseInt (second x))
-      "health" (Integer/parseInt (nth x 2))}
+              (re-find #"([0-9]{1,2})/([0-9]{1,2})" token)
+              {"attack" (Integer/parseInt (second x))
+               "health" (Integer/parseInt (nth x 2))}
 
-     (re-find #"([0-9]{1,2})/" token)
-     {"attack" (Integer/parseInt (second x))}
+              (re-find #"([0-9]{1,2})/" token)
+              {"attack" (Integer/parseInt (second x))}
 
-     (re-find #"/([0-9]{1,2})" token)
-     {"health" (Integer/parseInt (second x))}
+              (re-find #"/([0-9]{1,2})" token)
+              {"health" (Integer/parseInt (second x))}
 
-     (= token "lego")
-     {"rarity" "legendary"}
+              (= token "lego")
+              {"rarity" "legendary"}
 
-     (rarities token)
-     {"rarity" x}
+              (rarities token)
+              {"rarity" x}
 
-     (classes token)
-     {"class" x}
+              (classes token)
+              {"class" x}
 
-     (types token)
-     {"type" x}
+              (types token)
+              {"type" x}
 
-     (minion-types token)
-     {"minionType" x}
+              (minion-types token)
+              {"minionType" x}
 
-     (keywords token)
-     {"keyword" x})))
+              (keywords token)
+              {"keyword" x}
+
+              (sets token)
+              {"set" x}
+
+              (= token "new")
+              {"set" "scholomance-academy"}
+
+              (set-groups token)
+              {"set" (clojure.string/join "," x)})))
 
 
+
+
+(defn help-text []
+  (let [metadata (get-meta-data)
+        rarities (map :slug (:rarities metadata))
+        classes (map :slug (:classes metadata))
+        types (map :slug (:types metadata))
+        minion-types (map :slug (:minionTypes metadata))
+        keywords (map :slug (:keywords metadata))
+        sets (map :slug (:sets metadata))
+        set-groups (map :slug (:sets metadata))]
+    (str
+     "Query commands:
+
+*mana*: 4m
+*attack/health*: 7/7
+*attack/*: 7/
+*/health*: /7
+*rarity*: " (clojure.string/join ", " rarities) "
+*classes*: " (clojure.string/join ", " classes) "
+*types*: " (clojure.string/join ", " types) "
+*minion types*: " (clojure.string/join ", " minion-types) "
+*keywords*: " (clojure.string/join ", " keywords) "
+*sets*: " (clojure.string/join ", " sets) "
+*set groups*: " (clojure.string/join ", " set-groups) "
+*text*: \"give bananas\"
+
+"))
+  )
 
 
 (defn parse-query [s]
@@ -180,12 +247,53 @@
         command (reduce (fn [command token]
                           (when command
                            (when-let [subcommand (token->command token)]
-                             (merge command subcommand))))
+                             (merge-with
+                              (fn [s1 s2]
+                                (str s1 "," s2))
+                              command subcommand))))
                         {}
                         tokens)]
-    command))
+    (when command
+      (if (contains? command "set")
+        command
+        (merge command (token->command "standard"))))))
 
 
+
+(def ^:dynamic action-data nil)
+(defn -get-action [s]
+  (assert action-data)
+  action-data)
+(def get-action (memo/ttl -get-action :ttl/threshold one-day))
+(defn make-action [data]
+  (binding [action-data data]
+    (let [s (str (hash data))]
+      (get-action s)
+      s)))
+
+(defn card-markdown [card]
+  )
+
+(defn list-cards-response [cards]
+  (let [main-blocks (for [card cards]
+                            {"type" "section"
+                             "text" {"type" "mrkdwn",
+                                     "text" (str
+                                             "*" (:name card) "*: " (:manaCost card) "m "
+                                             (when (:attack card)
+                                               (str (:attack card) "/"
+                                                    (get card :health
+                                                         (get card :durability))))
+                                             " ")}
+                             "accessory" {"type" "button"
+                                          "text" {"type" "plain_text"
+                                                  "text" "view"}
+                                          "value" (make-action [:view-card (:slug card)])}
+                             })
+        
+        ]
+    {"response_type" "in_channel"
+     "blocks" main-blocks}))
 
 (defn card-response [search cards index]
   (let [card (nth cards index)
@@ -200,43 +308,62 @@
                                "text" (:name card)},
                       "image_url" (:image card)
                       "alt_text" (:flavorText card)}
-                     #_{"type" "section",
-                        "text"
-                        {"type" "mrkdwn",
-                         "text"
-                         (get card :name)},
-                        "accessory"
-                        {"type" "image",
-                         "image_url" (get card :cropImage)
-                         "alt_text" (get card :flavorText)}}]]
+                     #_{"type" "context",
+                      "elements"
+                      (for [c  (take 10 cards)]
+                        {"type" "image"
+                         "alt_text" (:name c)
+                         "image_url"  (:cropImage c)})
+                      
+                      }]
+        
+        ]
     {"response_type" "in_channel"
      "blocks"
-     (if (< (inc index) (count cards))
-       (into main-blocks
+     (into main-blocks
+           (when (> (count cards) 1)
              [{"type" "divider"}
               {"type" "actions",
                "elements"
-               [{"type" "button",
-                 "text"
-                 {"type" "plain_text", "text" "Next Result"}
-                 "value" (clojure.string/join "::" ["getcard" search (inc index)]) }]}])
-       main-blocks)})
+               (into []
+                     (concat
+                      (for [i (range (max 0 (dec index))
+                                     (min (count cards)
+                                          (+ index 5)))
+                            :when (not= i index)
+                            :let [card (nth cards i)]]
+                        {"type" "button",
+                         "text"
+                         {"type" "plain_text", "text" (:name card)}
+                         "value" (make-action [:getcard search i])})
+                      
+                      [{"type" "button",
+                        "text"
+                        {"type" "plain_text", "text" "..."}
+                        "value" (make-action [:list-cards search])}]))
+               }]))})
   )
 
 
 
 
 (defn hs-command [request]
-  (prn request)
   (let [text (get-in request [:form-params "text"])]
-    (if-let [command (parse-query text)]
+    (if-let [command (when (not= "help" text)
+                       (parse-query text))]
       (let [cards (:cards (search-cards command))]
+        (prn command)
         {:body (if (seq cards)
                  (json/write-str (card-response text cards 0))
                  "No cards found.")
          :headers {"Content-type" "application/json"}
          :status 200})
-      {:body "Error parsing query."
+      {:body (json/write-str
+              {"response_type" "ephemeral"
+               "blocks" [{"type" "section"
+                          "text" {"type" "mrkdwn"
+                                  "text" (str "Error parsing query.\n" (help-text))}}
+                         ]}) 
        :headers {"Content-type" "application/json"}
        :status 200})))
 
@@ -248,24 +375,56 @@
                    (get "actions")
                    first
                    (get "value"))
-        [_ search index] (clojure.string/split action #"::")
-        ]
-    (prn action search index)
-    
-    (future
-      (try
-        (client/post url
-                     {:body (json/write-str
-                             (assoc (card-response search
-                                                   (:cards (search-cards search))
-                                                   (Long/parseLong index))
-                                    "replace_original" true))
-                      :headers {"Content-type" "application/json"}})
-        (catch Exception e
-          (prn e))))
-    {:body "ok"
-     :headers {"Content-type" "application/json"}
-     :status 200}))
+        [action-type & action-args :as event] (get-action action)]
+
+    (case action-type
+
+      :list-cards
+      (let [[_ search] event]
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 (assoc (list-cards-response (:cards (search-cards (parse-query search))))
+                                        "replace_original" true))
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
+      :view-card
+      (let [[_ slug] event]
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 (assoc (card-response "" [(get-card slug)] 0)
+                                        "replace_original" true))
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
+      :getcard
+      (let [[_ search index] event]
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 (assoc (card-response search
+                                                       (:cards (search-cards (parse-query search)))
+                                                       index)
+                                        "replace_original" true))
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200}))))
 
 (def my-routes
   (routes
@@ -277,7 +436,13 @@
    ;; (GET "/:room{[a-zA-Z0-9.\\-]+}" [] (response/resource-response "index.html" {:root "public"}))
    ;; ;; (GET "/js/" [] (response/resource-response "js/compiled/berry.js" {:root "public"}))
 
-   (ANY "/.*" [] hs-command)
+   (GET "/debug" []
+        {:body (json/write-str (card-response "Onyx Magescribe"
+                                              (:cards (search-cards "Onyx Magescribe" ))
+                                              0
+
+                                              ))
+         :status 200})
    (ANY "/interact/getcard" [] hs-command-interact)
    ;; (GET "/bar" [] "Hello Bar")
    (route/not-found "Not Found"))
