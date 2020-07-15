@@ -274,8 +274,8 @@
 (defn card-markdown [card]
   )
 
-(defn list-cards-response [cards]
-  (let [main-blocks (for [card cards]
+(defn list-cards-response [search cards]
+  (let [main-blocks (for [[i card] (map-indexed vector cards)]
                             {"type" "section"
                              "text" {"type" "mrkdwn",
                                      "text" (str
@@ -288,7 +288,7 @@
                              "accessory" {"type" "button"
                                           "text" {"type" "plain_text"
                                                   "text" "view"}
-                                          "value" (make-action [:view-card (:slug card)])}
+                                          "value" (make-action [:getcard search i])}
                              })
         
         ]
@@ -385,7 +385,7 @@
           (try
             (client/post url
                          {:body (json/write-str
-                                 (assoc (list-cards-response (:cards (search-cards (parse-query search))))
+                                 (assoc (list-cards-response search (:cards (search-cards (parse-query search))))
                                         "replace_original" true))
                           :headers {"Content-type" "application/json"}})
             (catch Exception e
