@@ -14,6 +14,23 @@
   (:gen-class))
 
 
+(defmacro cond-let
+  "Takes a binding-form and a set of test/expr pairs. Evaluates each test
+  one at a time. If a test returns logical true, cond-let evaluates and
+  returns expr with binding-form bound to the value of test and doesn't
+  evaluate any of the other tests or exprs. To provide a default value
+  either provide a literal that evaluates to logical true and is
+  binding-compatible with binding-form, or use :else as the test and don't
+  refer to any parts of binding-form in the expr. (cond-let binding-form)
+  returns nil."
+  [bindings & clauses]
+  (let [binding (first bindings)]
+    (when-let [[test expr & more] clauses]
+      (if (= test :else)
+        expr
+        `(if-let [~binding ~test]
+           ~expr
+           (cond-let ~bindings ~@more))))))
 
 
 
@@ -51,6 +68,25 @@
   (get-token))
 
 
+
+(defn -get-meta-data
+  ([]
+   (-get-meta-data (get-token) 1))
+  ([token retry-count]
+   (try+
+    (let [result (client/get "https://us.api.blizzard.com/hearthstone/metadata"
+                             {:headers {"Authorization" (str "Bearer " (get-token))}
+                              :query-params
+                              {"locale" "en_US"}})
+          body (:body result)
+          obj (json/read-json body)]
+      obj)
+    (catch [:status 401] e
+      (println "unauthorized")
+      (when (pos? retry-count)
+        (refetch-token)
+        (-get-meta-data (get-token) (dec retry-count)))))))
+
 (defn -search-cards
   ([txt]
    (-search-cards (get-token) txt 1))
@@ -59,8 +95,11 @@
     (let [result (client/get "https://us.api.blizzard.com/hearthstone/cards"
                              {:headers {"Authorization" (str "Bearer " token)}
                               :query-params
-                              {"locale" "en_US"
-                               "textFilter" txt}})
+                              (merge
+                               {"locale" "en_US"}
+                               (if (string? txt)
+                                 {"textFilter" txt}
+                                 txt))})
           body (:body result)
           obj (json/read-json body)]
       obj)
@@ -73,14 +112,88 @@
 (def ten-minutes (* 1000 60 10))
 (def search-cards (memo/ttl -search-cards :ttl/threshold ten-minutes))
 
+(def one-day (* 1000 86400))
+(def get-meta-data (memo/ttl -get-meta-data :ttl/threshold one-day))
+
+
+
+(defn parse-tokens [s]
+  (let [regex #"\s?(\"[^\"]+\"|[\S^\"]+)"]
+    (loop [parts []
+           s s]
+      (let [[whole part] (re-find regex s)]
+        (if part
+          (recur (conj parts part)
+                 (subs s (count whole)))
+          parts)))))
+
+
+
+(defn token->command [token]
+  (let [metadata (get-meta-data)
+        rarities (set (map :slug (:rarities metadata)))
+        classes (set (map :slug (:classes metadata)))
+        types (set (map :slug (:types metadata)))
+        minion-types (set (map :slug (:minionTypes metadata)))
+        keywords (set (map :slug (:keywords metadata)))]
+   (cond-let [x]
+
+     (re-find #"\"([^\"]+)\"" token)
+     {"textFilter" (second x)}
+
+     (re-find #"([0-9]{1,2})m" token)
+     {"manaCost" (Integer/parseInt (second x))}
+
+     (re-find #"([0-9]{1,2})/([0-9]{1,2})" token)
+     {"attack" (Integer/parseInt (second x))
+      "health" (Integer/parseInt (nth x 2))}
+
+     (re-find #"([0-9]{1,2})/" token)
+     {"attack" (Integer/parseInt (second x))}
+
+     (re-find #"/([0-9]{1,2})" token)
+     {"health" (Integer/parseInt (second x))}
+
+     (= token "lego")
+     {"rarity" "legendary"}
+
+     (rarities token)
+     {"rarity" x}
+
+     (classes token)
+     {"class" x}
+
+     (types token)
+     {"type" x}
+
+     (minion-types token)
+     {"minionType" x}
+
+     (keywords token)
+     {"keyword" x})))
+
+
+
+
+(defn parse-query [s]
+  (let [tokens (parse-tokens s)
+        command (reduce (fn [command token]
+                          (when command
+                           (when-let [subcommand (token->command token)]
+                             (merge command subcommand))))
+                        {}
+                        tokens)]
+    command))
+
+
 
 (defn card-response [search cards index]
   (let [card (nth cards index)
         main-blocks [{"type" "section",
-                     "text"
-                     {"type" "mrkdwn",
                       "text"
-                      (str (inc index) " of " (count cards) " matches.")}}
+                      {"type" "mrkdwn",
+                       "text"
+                       (str (inc index) " of " (count cards) " matches.")}}
                      {"type" "divider"}
                      {"type" "image",
                       "title" {"type" "plain_text",
@@ -88,14 +201,14 @@
                       "image_url" (:image card)
                       "alt_text" (:flavorText card)}
                      #_{"type" "section",
-                     "text"
-                     {"type" "mrkdwn",
-                      "text"
-                      (get card :name)},
-                     "accessory"
-                     {"type" "image",
-                      "image_url" (get card :cropImage)
-                      "alt_text" (get card :flavorText)}}]]
+                        "text"
+                        {"type" "mrkdwn",
+                         "text"
+                         (get card :name)},
+                        "accessory"
+                        {"type" "image",
+                         "image_url" (get card :cropImage)
+                         "alt_text" (get card :flavorText)}}]]
     {"response_type" "in_channel"
      "blocks"
      (if (< (inc index) (count cards))
@@ -115,14 +228,17 @@
 
 (defn hs-command [request]
   (prn request)
-  (let [text (get-in request [:form-params "text"])
-        cards (:cards (search-cards text))]
-    
-    {:body (if (seq cards)
-             (json/write-str (card-response text cards 0))
-             "No cards found.")
-     :headers {"Content-type" "application/json"}
-     :status 200}))
+  (let [text (get-in request [:form-params "text"])]
+    (if-let [command (parse-query text)]
+      (let [cards (:cards (search-cards command))]
+        {:body (if (seq cards)
+                 (json/write-str (card-response text cards 0))
+                 "No cards found.")
+         :headers {"Content-type" "application/json"}
+         :status 200})
+      {:body "Error parsing query."
+       :headers {"Content-type" "application/json"}
+       :status 200})))
 
 
 (defn hs-command-interact [request]
