@@ -298,33 +298,43 @@
   )
 
 (defn list-cards-response [search cards]
-  (let [main-blocks (for [[i card] (map-indexed vector cards)]
-                            {"type" "section"
-                             "text" {"type" "mrkdwn",
-                                     "text" (str
-                                             "*" (:name card) "*: " (:manaCost card) "m "
-                                             (when (:attack card)
-                                               (str (:attack card) "/"
-                                                    (get card :health
-                                                         (get card :durability))))
-                                             " ")}
-                             "accessory" {"type" "button"
-                                          "text" {"type" "plain_text"
-                                                  "text" "view"}
-                                          "value" (make-action [:getcard search i])}
-                             })
-        
-        ]
+  (let [header {"type" "section"
+                "text" {"type" "mrkdwn",
+                        "text" search}
+                "accessory" {"type" "button"
+                             "text" {"type" "plain_text"
+                                     "text" "delete"}
+                             "value" (make-action [:delete-message])}}
+        main-blocks (for [[i card] (map-indexed vector cards)]
+                      {"type" "section"
+                       "text" {"type" "mrkdwn",
+                               "text" (str
+                                       "*" (:name card) "*: " (:manaCost card) "m "
+                                       (when (:attack card)
+                                         (str (:attack card) "/"
+                                              (get card :health
+                                                   (get card :durability))))
+                                       " ")}
+                       "accessory" {"type" "button"
+                                    "text" {"type" "plain_text"
+                                            "text" "view"}
+                                    "value" (make-action [:getcard search i])}
+                       })]
     {"response_type" "in_channel"
-     "blocks" main-blocks}))
+     "blocks" (into [header]
+                    main-blocks)}))
 
 (defn card-response [search cards index]
   (let [card (nth cards index)
         main-blocks [{"type" "section",
-                      "text"
-                      {"type" "mrkdwn",
-                       "text"
-                       (str (inc index) " of " (count cards) " matches.")}}
+                      "text" {"type" "mrkdwn",
+                              "text"
+                              (str (inc index) " of " (count cards) " matches.")}
+                      "accessory" {"type" "button"
+                                   "text" {"type" "plain_text"
+                                           "text" "delete"}
+                                   "value" (make-action [:delete-message])}}
+
                      {"type" "divider"}
                      {"type" "image",
                       "title" {"type" "plain_text",
@@ -401,6 +411,20 @@
         [action-type & action-args :as event] (get-action action)]
 
     (case action-type
+
+      :delete-message
+      (do
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 {"delete_original" true})
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
 
       :list-cards
       (let [[_ search] event]
