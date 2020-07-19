@@ -263,25 +263,31 @@
       (reduce merge2 maps))))
 
 
+
+(declare hard-coded)
+
 (defn parse-query [s]
-  (let [tokens (parse-tokens s)
-        command (reduce (fn [command token]
-                          (when command
-                           (when-let [subcommand (token->command token)]
-                             (merge-with-k
-                              (fn [k s1 s2]
-                                (if (= k "textFilter")
-                                  (str s1 " " s2)
-                                  (str s1 "," s2)))
-                              command subcommand))))
-                        {}
-                        tokens)]
-    (when command
-      (if (contains? command "set")
-        command
-        (merge command (token->command "standard"))))))
+  (if-let [cmd (get hard-coded s)]
+    cmd
+    (let [tokens (parse-tokens s)
+          command (reduce (fn [command token]
+                            (when command
+                              (when-let [subcommand (token->command token)]
+                                (merge-with-k
+                                 (fn [k s1 s2]
+                                   (if (= k "textFilter")
+                                     (str s1 " " s2)
+                                     (str s1 "," s2)))
+                                 command subcommand))))
+                          {}
+                          tokens)]
+      (when command
+        (if (contains? command "set")
+          command
+          (merge command (token->command "standard")))))))
 
-
+(def hard-coded
+  {"infinite value" (parse-query "priest hero galakrond")})
 
 (def ^:dynamic action-data nil)
 (defn -get-action [s]
