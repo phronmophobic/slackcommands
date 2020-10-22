@@ -205,7 +205,7 @@
               {"set" x}
 
               (= token "new")
-              {"set" "scholomance-academy"}
+              {"set" "madness-at-the-darkmoon-faire"}
 
               (set-groups token)
               {"set" (clojure.string/join "," x)}
