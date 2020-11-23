@@ -413,10 +413,11 @@
         rarity (some #(when (= (:id %) rarity-id)
                         %)
                      rarities)]
-    (get-in rarity [:craftingCost 0] 0)))
+    (or (get-in rarity [:craftingCost 0])
+        0)))
 
 (defn deck-code-response [text]
-  (let [parts (clojure.string/split text #"\W+")]
+  (let [parts (clojure.string/split text #" +")]
     (if (= (count parts) 2)
       (try+
        (let [deck-code (nth parts 1)
