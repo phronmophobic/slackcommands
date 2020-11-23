@@ -130,13 +130,37 @@
 
 
 (def one-day (* 1000 86400))
+(def one-hour (* 1000 60 60))
 (def get-card (memo/ttl -get-card :ttl/threshold one-day))
 
 
-(def search-cards (memo/ttl -search-cards :ttl/threshold one-day))
+(defn -read-deck-code
+  ([deck-code]
+   (-read-deck-code (get-token) deck-code 1))
+  ([token deck-code retry-count]
+   (try+
+    (let [result (client/get (str "https://us.api.blizzard.com/hearthstone/deck")
+                             {:headers {"Authorization" (str "Bearer " token)}
+                              :query-params
+                              {"locale" "en_US"
+                               "code" deck-code}})
+          body (:body result)
+          obj (json/read-json body)]
+      obj)
+    (catch [:status 401] e
+      (println "unauthorized")
+      (when (pos? retry-count)
+        (refetch-token)
+        (-read-deck-code (get-token) deck-code (dec retry-count))))))
+  )
+
+(def search-cards (memo/ttl -search-cards :ttl/threshold one-hour))
 
 
-(def get-meta-data (memo/ttl -get-meta-data :ttl/threshold one-day))
+(def read-deck-code (memo/ttl -read-deck-code :ttl/threshold one-hour))
+
+
+(def get-meta-data (memo/ttl -get-meta-data :ttl/threshold one-hour))
 
 
 
@@ -383,28 +407,81 @@
                }]))})
   )
 
+(defn deck-code-response [text]
+  (let [parts (clojure.string/split text #"\W+")]
+    (if (= (count parts) 2)
+      (try+
+       (let [deck-code (nth parts 1)
+
+             response (-read-deck-code deck-code)
+             cards (:cards response)
+             card-strs (->> (group-by :slug cards)
+                            (map (fn [[slug cards]]
+                                   (str (count cards) "x" " " (:name (first cards))))))]
+         {"response_type" "in_channel"
+          "blocks" [{"type" "section"
+                     "text" {"type" "mrkdwn"
+                             "text"
+                             (str "```"
+                                  (clojure.string/join "\n" card-strs)
+                                  "```")}}]})
+       (catch [:status 400] e
+         {"response_type" "ephemeral"
+          "blocks" [{"type" "section"
+                     "text" {"type" "mrkdwn"
+                             "text" (str "Error parsing deck code.\n")}}]}))
+      {"response_type" "ephemeral"
+       "blocks" [{"type" "section"
+                  "text" {"type" "mrkdwn"
+                          "text" (str "Error parsing deck code.\n")}}]})))
+
+
 
 
 
 (defn hs-command [request]
   (let [text (get-in request [:form-params "text"])]
-    (if-let [command (when (not= "help" text)
-                       (parse-query text))]
-      (let [cards (:cards (search-cards command))]
-        (prn command)
-        {:body (if (seq cards)
-                 (json/write-str (card-response text cards 0))
-                 "No cards found.")
-         :headers {"Content-type" "application/json"}
-         :status 200})
+    (cond
+      (or (.startsWith text "deck")
+          (.startsWith text "deck-code")
+          (.startsWith text "deckcode")
+          (.startsWith text "decklist")
+          (.startsWith text "deck-list"))
+      
+      {:body (json/write-str (deck-code-response text))
+       :headers {"Content-type" "application/json"}
+       :status 200}
+      
+      (= text "help")
       {:body (json/write-str
               {"response_type" "ephemeral"
                "blocks" [{"type" "section"
                           "text" {"type" "mrkdwn"
-                                  "text" (str "Error parsing query.\n" (help-text))}}
+                                  "text" (help-text)}}
                          ]}) 
        :headers {"Content-type" "application/json"}
-       :status 200})))
+       :status 200}
+
+      
+
+      :else
+      (if-let [command (when (not= "help" text)
+                         (parse-query text))]
+        (let [cards (:cards (search-cards command))]
+          (prn command)
+          {:body (if (seq cards)
+                   (json/write-str (card-response text cards 0))
+                   "No cards found.")
+           :headers {"Content-type" "application/json"}
+           :status 200})
+        {:body (json/write-str
+                {"response_type" "ephemeral"
+                 "blocks" [{"type" "section"
+                            "text" {"type" "mrkdwn"
+                                    "text" (str "Error parsing query.\n" (help-text))}}
+                           ]}) 
+         :headers {"Content-type" "application/json"}
+         :status 200}))))
 
 
 (defn hs-command-interact [request]
