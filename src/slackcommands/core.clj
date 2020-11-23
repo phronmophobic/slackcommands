@@ -407,22 +407,48 @@
                }]))})
   )
 
+(defn card-dust [rarity-id]
+  (let [metadata (get-meta-data )
+        rarities (:rarities metadata)
+        rarity (some #(when (= (:id %) rarity-id)
+                        %)
+                     rarities)]
+    (get-in rarity [:craftingCost 0] 0)))
+
 (defn deck-code-response [text]
   (let [parts (clojure.string/split text #"\W+")]
     (if (= (count parts) 2)
       (try+
        (let [deck-code (nth parts 1)
-
              response (-read-deck-code deck-code)
              cards (:cards response)
              card-strs (->> (group-by :slug cards)
+                            (sort-by (fn [[slug cards]]
+                                       (->> cards
+                                            first
+                                            :manaCost)))
                             (map (fn [[slug cards]]
-                                   (str (count cards) "x" " " (:name (first cards))))))]
+                                   (let [card (first cards)]
+                                     (str (if (>= (count cards) 2) "2x" "  ")
+                                          " "
+                                          (:manaCost card)
+                                          " "
+                                          (case (:rarityId card)
+                                            5 "**"
+                                            4 "*"
+                                            ;; else
+                                            nil
+                                            )
+                                          (:name card))))))]
          {"response_type" "in_channel"
           "blocks" [{"type" "section"
                      "text" {"type" "mrkdwn"
                              "text"
                              (str "```"
+                                  "Class: " (:name (:class response))
+                                  "\n"
+                                  "Dust: " (apply + (map #(card-dust (:rarityId %)) cards))
+                                  "\n\n"
                                   (clojure.string/join "\n" card-strs)
                                   "```")}}]})
        (catch [:status 400] e
