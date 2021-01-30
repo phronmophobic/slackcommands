@@ -210,6 +210,10 @@
               (= token "lego")
               {"rarity" "legendary"}
 
+              ({"dh" "demonhunter"
+                "pally" "paladin"} token)
+              {"class" x}
+
               (rarities token)
               {"rarity" x}
 
