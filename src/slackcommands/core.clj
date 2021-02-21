@@ -183,7 +183,9 @@
         types (set (map :slug (:types metadata)))
         minion-types (set (map :slug (:minionTypes metadata)))
         keywords (set (map :slug (:keywords metadata)))
-        sets (set (map :slug (:sets metadata)))
+        all-sets (map :slug (:sets metadata))
+        sets (set all-sets)
+        latest-set (first all-sets)
         set-groups (into {}
                          (for [sgroup (:setGroups metadata)]
                            [(:slug sgroup)
@@ -233,7 +235,7 @@
               {"set" x}
 
               (= token "new")
-              {"set" "madness-at-the-darkmoon-faire"}
+              {"set" latest-set}
 
               (set-groups token)
               {"set" (clojure.string/join "," x)}
