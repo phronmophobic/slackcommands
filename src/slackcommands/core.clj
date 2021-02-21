@@ -303,12 +303,22 @@
           command (reduce (fn [command token]
                             (when command
                               (when-let [subcommand (token->command token)]
-                                (merge-with-k
-                                 (fn [k s1 s2]
-                                   (if (= k "textFilter")
-                                     (str s1 " " s2)
-                                     (str s1 "," s2)))
-                                 command subcommand))))
+                                ;; can't have more than one keyword :-/
+                                (let [subcommand (if (and (contains? subcommand "keyword")
+                                                          (contains? command "keyword"))
+                                                   (-> subcommand
+                                                       (dissoc "keyword")
+                                                       (update "textFilter" (fn [s]
+                                                                        (if s
+                                                                          (str s "," (get subcommand "keyword"))
+                                                                          (get subcommand "keyword")))))
+                                                   subcommand)]
+                                  (merge-with-k
+                                   (fn [k s1 s2]
+                                     (if (= k "textFilter")
+                                       (str s1 " " s2)
+                                       (str s1 "," s2)))
+                                   command subcommand)))))
                           {}
                           tokens)]
       (when command
