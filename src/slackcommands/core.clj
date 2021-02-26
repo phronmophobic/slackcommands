@@ -187,9 +187,14 @@
         sets (set all-sets)
         latest-set (first all-sets)
         set-groups (into {}
-                         (for [sgroup (:setGroups metadata)]
-                           [(:slug sgroup)
-                            (:cardSets sgroup)]))]
+                         (concat
+                          (for [sgroup (:setGroups metadata)]
+                            [(:slug sgroup)
+                             (:cardSets sgroup)])
+                          (for [sgroup (:setGroups metadata)]
+                            [(str "yo" (:slug sgroup))
+                             (:cardSets sgroup)])))
+        ]
     
     (cond-let [x]
 
