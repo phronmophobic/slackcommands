@@ -43,7 +43,7 @@
 ;; https://slack.com/help/articles/360001623607-Create-commands-for-Slack-apps
 
 (defn get-access-token []
-  (let [result (client/get "https://us.battle.net/oauth/token"
+  (let [result (client/post "https://us.battle.net/oauth/token"
                            {:query-params
                             (merge
                              {"grant_type" "client_credentials"}
