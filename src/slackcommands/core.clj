@@ -188,7 +188,11 @@
         latest-set (->> all-sets
                         (remove #{"core"})
                         first)
-        set-groups (into {}
+        set-groups (into {"rotating" (->> metadata
+                                          :setGroups
+                                          (filter #(= "dragon" (:slug %)))
+                                          first
+                                          :cardSets)}
                          (concat
                           (for [sgroup (:setGroups metadata)]
                             [(:slug sgroup)
