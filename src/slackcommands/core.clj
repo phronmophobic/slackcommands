@@ -185,7 +185,9 @@
         keywords (set (map :slug (:keywords metadata)))
         all-sets (map :slug (:sets metadata))
         sets (set all-sets)
-        latest-set (first all-sets)
+        latest-set (->> all-sets
+                        (remove #{"core"})
+                        first)
         set-groups (into {}
                          (concat
                           (for [sgroup (:setGroups metadata)]
