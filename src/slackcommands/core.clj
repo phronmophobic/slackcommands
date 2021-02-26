@@ -372,6 +372,12 @@
 
 (defn card-response [search cards index]
   (let [card (nth cards index)
+        card-set-id (get card :cardSetId)
+        card-set-name (->> (get-meta-data)
+                           :sets
+                           (filter #(= card-set-id (get % :id)))
+                           first
+                           :name)
         main-blocks [{"type" "section",
                       "text" {"type" "mrkdwn",
                               "text"
@@ -386,7 +392,7 @@
                       "title" {"type" "plain_text",
                                "text" (:name card)},
                       "image_url" (:image card)
-                      "alt_text" (:flavorText card)}
+                      "alt_text" (str card-set-name ": " (:flavorText card))}
                      #_{"type" "context",
                       "elements"
                       (for [c  (take 10 cards)]
