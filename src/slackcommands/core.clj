@@ -401,7 +401,9 @@
                      {"type" "divider"}
                      {"type" "image",
                       "title" {"type" "plain_text",
-                               "text" (:name card)},
+                               "text" (str (:name card)
+                                           " "
+                                           "(" card-set-name ")")},
                       "image_url" (:image card)
                       "alt_text" (str card-set-name ": " (:flavorText card))}
                      #_{"type" "context",
