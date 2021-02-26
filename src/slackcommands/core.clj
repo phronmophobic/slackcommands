@@ -254,7 +254,7 @@
         minion-types (map :slug (:minionTypes metadata))
         keywords (map :slug (:keywords metadata))
         sets (map :slug (:sets metadata))
-        set-groups (map :slug (:sets metadata))]
+        set-groups (map :slug (:setGroups metadata))]
     (str
      "Query commands:
 
