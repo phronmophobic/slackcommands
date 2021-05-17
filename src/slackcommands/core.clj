@@ -501,15 +501,11 @@
 
 
 
+
 (defn hs-command [request]
   (let [text (get-in request [:form-params "text"])]
     (cond
-      (or (.startsWith text "deck")
-          (.startsWith text "deck-code")
-          (.startsWith text "deckcode")
-          (.startsWith text "decklist")
-          (.startsWith text "deck-list"))
-      
+      (.startsWith text "deck")
       {:body (json/write-str (deck-code-response text))
        :headers {"Content-type" "application/json"}
        :status 200}
