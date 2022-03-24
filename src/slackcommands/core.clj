@@ -433,21 +433,23 @@
                            "image_url"  (:cropImage c)})
                       
                         }]
+        parent-cards (when-let [pid (:parentId card)]
+                      (search-cards {:id pid}))
         child-cards (when (seq (:childIds card))
                       (search-cards {:id (clojure.string/join ","
                                                               (:childIds card))}))
+        related-cards (concat (:cards parent-cards)
+                              (:cards child-cards))
         main-blocks (into main-blocks
-                          (when child-cards
+                          (when (seq related-cards)
                             [{"type" "actions",
                               "elements"
-                              (for [child-card (:cards child-cards)]
+                              (for [related-card related-cards]
                                 (let []
                                   {"type" "button",
                                    "text"
-                                   {"type" "plain_text", "text" (:name child-card)}
-                                   "value" (make-action [:getcard (str "cardid:" (:id child-card)) 0])}))}]))
-        
-        ]
+                                   {"type" "plain_text", "text" (:name related-card)}
+                                   "value" (make-action [:getcard (str "cardid:" (:id related-card)) 0])}))}]))]
     {"response_type" "in_channel"
      "blocks"
      (into main-blocks
