@@ -426,13 +426,26 @@
                       "image_url" (:image card)
                       "alt_text" (str card-set-name ": " (:flavorText card))}
                      #_{"type" "context",
-                      "elements"
-                      (for [c  (take 10 cards)]
-                        {"type" "image"
-                         "alt_text" (:name c)
-                         "image_url"  (:cropImage c)})
+                        "elements"
+                        (for [c  (take 10 cards)]
+                          {"type" "image"
+                           "alt_text" (:name c)
+                           "image_url"  (:cropImage c)})
                       
-                      }]
+                        }]
+        child-cards (when (seq (:childIds card))
+                      (search-cards {:id (clojure.string/join ","
+                                                              (:childIds card))}))
+        main-blocks (into main-blocks
+                          (when child-cards
+                            [{"type" "actions",
+                              "elements"
+                              (for [child-card (:cards child-cards)]
+                                (let []
+                                  {"type" "button",
+                                   "text"
+                                   {"type" "plain_text", "text" (:name child-card)}
+                                   "value" (make-action [:getcard (str "cardid:" (:id child-card)) 0])}))}]))
         
         ]
     {"response_type" "in_channel"
