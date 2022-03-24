@@ -182,6 +182,7 @@
         classes (set (map :slug (:classes metadata)))
         types (set (map :slug (:types metadata)))
         minion-types (set (map :slug (:minionTypes metadata)))
+        spell-schools (set (map :slug (:spellSchools metadata)))
         keywords (set (map :slug (:keywords metadata)))
         all-sets (map :slug (:sets metadata))
         sets (set all-sets)
@@ -204,55 +205,58 @@
     
     (cond-let [x]
 
-              (re-find #"\"([^\"]+)\"" token)
-              {"textFilter" (second x)}
+      (re-find #"\"([^\"]+)\"" token)
+      {"textFilter" (second x)}
 
-              (re-find #"([0-9]{1,2})m" token)
-              {"manaCost" (Integer/parseInt (second x))}
+      (re-find #"([0-9]{1,2})m" token)
+      {"manaCost" (Integer/parseInt (second x))}
 
-              (re-find #"([0-9]{1,2})/([0-9]{1,2})" token)
-              {"attack" (Integer/parseInt (second x))
-               "health" (Integer/parseInt (nth x 2))}
+      (re-find #"([0-9]{1,2})/([0-9]{1,2})" token)
+      {"attack" (Integer/parseInt (second x))
+       "health" (Integer/parseInt (nth x 2))}
 
-              (re-find #"([0-9]{1,2})/" token)
-              {"attack" (Integer/parseInt (second x))}
+      (re-find #"([0-9]{1,2})/" token)
+      {"attack" (Integer/parseInt (second x))}
 
-              (re-find #"/([0-9]{1,2})" token)
-              {"health" (Integer/parseInt (second x))}
+      (re-find #"/([0-9]{1,2})" token)
+      {"health" (Integer/parseInt (second x))}
 
-              (= token "lego")
-              {"rarity" "legendary"}
+      (= token "lego")
+      {"rarity" "legendary"}
 
-              ({"dh" "demonhunter"
-                "pally" "paladin"} token)
-              {"class" x}
+      ({"dh" "demonhunter"
+        "pally" "paladin"} token)
+      {"class" x}
 
-              (rarities token)
-              {"rarity" x}
+      (rarities token)
+      {"rarity" x}
 
-              (classes token)
-              {"class" x}
+      (classes token)
+      {"class" x}
 
-              (types token)
-              {"type" x}
+      (types token)
+      {"type" x}
 
-              (minion-types token)
-              {"minionType" x}
+      (minion-types token)
+      {"minionType" x}
 
-              (keywords token)
-              {"keyword" x}
+      (keywords token)
+      {"keyword" x}
+      
+      (spell-schools token)
+      {"spellSchool" x}
 
-              (sets token)
-              {"set" x}
+      (sets token)
+      {"set" x}
 
-              (= token "new")
-              {"set" latest-set}
+      (= token "new")
+      {"set" latest-set}
 
-              (set-groups token)
-              {"set" (clojure.string/join "," x)}
+      (set-groups token)
+      {"set" (clojure.string/join "," x)}
 
-              :else
-              {"textFilter" token})))
+      :else
+      {"textFilter" token})))
 
 
 
@@ -263,6 +267,7 @@
         classes (map :slug (:classes metadata))
         types (map :slug (:types metadata))
         minion-types (map :slug (:minionTypes metadata))
+        spell-schools (set (map :slug (:spellSchools metadata)))
         keywords (map :slug (:keywords metadata))
         sets (map :slug (:sets metadata))
         set-groups (map :slug (:setGroups metadata))]
@@ -277,6 +282,7 @@
 *classes*: " (clojure.string/join ", " classes) "
 *types*: " (clojure.string/join ", " types) "
 *minion types*: " (clojure.string/join ", " minion-types) "
+*spell schools*: " (clojure.string/join ", " spell-schools) "
 *keywords*: " (clojure.string/join ", " keywords) "
 *sets*: " (clojure.string/join ", " sets) "
 *set groups*: " (clojure.string/join ", " set-groups) "
