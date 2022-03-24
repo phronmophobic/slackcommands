@@ -9,7 +9,7 @@
                  [http-kit "2.4.0-alpha6"]
                  [compojure "1.6.1"]
                  [ring "1.8.1"]
-                 [org.clojure/core.memoize "1.0.236"]
+                 [org.clojure/core.memoize "1.0.257"]
 
                  [org.clojure/data.json "1.0.0"]]
   :main ^:skip-aot slackcommands.core
