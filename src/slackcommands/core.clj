@@ -351,6 +351,10 @@
       (get-action s)
       s)))
 
+(defn clear-caches []
+  (doseq [f [get-card search-cards read-deck-code get-meta-data get-action]]
+    (memo/memo-clear! f)))
+
 (defn card-markdown [card]
   )
 
@@ -509,6 +513,18 @@
       {:body (json/write-str (deck-code-response text))
        :headers {"Content-type" "application/json"}
        :status 200}
+
+      (#{"clear-cache" "clearcache"} text)
+      (do
+        (clear-caches)
+        {:body (json/write-str
+                {"response_type" "ephemeral"
+                 "blocks" [{"type" "section"
+                            "text" {"type" "mrkdwn"
+                                    "text" "cache cleared!"}}
+                           ]})
+         :headers {"Content-type" "application/json"}
+         :status 200})
       
       (= text "help")
       {:body (json/write-str
