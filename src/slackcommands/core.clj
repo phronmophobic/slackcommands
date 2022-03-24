@@ -224,6 +224,15 @@
       (= token "lego")
       {"rarity" "legendary"}
 
+      (= token "uncollectible")
+      {"collectible" "0"}
+
+      (= token "collectible")
+      {"collectible" "1"}
+
+      (re-find #"cardid:(.*)" token)
+      {"id" (second x)}
+
       ({"dh" "demonhunter"
         "pally" "paladin"} token)
       {"class" x}
