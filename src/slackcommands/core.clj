@@ -670,6 +670,16 @@
    ;; (GET "/:room{[a-zA-Z0-9.\\-]+}" [] (response/resource-response "index.html" {:root "public"}))
    ;; ;; (GET "/js/" [] (response/resource-response "js/compiled/berry.js" {:root "public"}))
 
+   (ANY "/this-is-fine" []
+        {:body (json/write-str
+                {"response_type" "ephemeral"
+                 "blocks" [{"type" "section"
+                            "text" {"type" "plain_text"
+                                    "emoji" true
+                                    "text" ":this-is-fine-party: :this-is-fine-fire: :thisisfine: :this-is-fine-but-with-ai: :this-is-fine-but-with-wind: :this-is-fine-but-with-flooding: :this-is-fine-but-with-lightning: :this-is-fine-but-with-earthquakes: :this-is-fine-but-with-bankruptcy: :meow-this-is-fine:"}}]})
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
    (GET "/debug" []
         {:body (json/write-str (card-response "Onyx Magescribe"
                                               (:cards (search-cards "Onyx Magescribe" ))
