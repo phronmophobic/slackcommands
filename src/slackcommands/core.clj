@@ -680,6 +680,27 @@
          :headers {"Content-type" "application/json"}
          :status 200})
 
+
+   (ANY "/party" []
+        {:body (json/write-str
+                {"response_type" "in_channel"
+                 "blocks" [{"type" "section"
+                            "text" {"type" "plain_text"
+                                    "emoji" true
+                                    "text" ":party: :party_parrot: :penguinparty: :partytoad: :party-blob: :pandaparty: :meow-party: :this-is-fine-party:"}}]})
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
+   (ANY "/parrot" []
+        {:body (json/write-str
+                {"response_type" "in_channel"
+                 "blocks" [{"type" "section"
+                            "text" {"type" "plain_text"
+                                    "emoji" true
+                                    "text" ":party_parrot: :clj-parrot: :shipitparrot: :pirateparrot: :parrot: :parrot_mustache: :fixparrot: :sad_parrot: :fast-parrot: :conga_parrot: :mask-parrot: :portalparrot: :coffee_parrot: :deal_with_it_parrot:"}}]})
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
    (GET "/debug" []
         {:body (json/write-str (card-response "Onyx Magescribe"
                                               (:cards (search-cards "Onyx Magescribe" ))
