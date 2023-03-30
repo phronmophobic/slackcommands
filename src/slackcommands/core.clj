@@ -672,7 +672,7 @@
 
    (ANY "/this-is-fine" []
         {:body (json/write-str
-                {"response_type" "ephemeral"
+                {"response_type" "in_channel"
                  "blocks" [{"type" "section"
                             "text" {"type" "plain_text"
                                     "emoji" true
