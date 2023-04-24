@@ -595,71 +595,71 @@
         action (-> payload
                    (get "actions")
                    first
-                   (get "value"))
-        [action-type & action-args :as event] (get-action action)]
+                   (get "value"))]
+    (if (.startsWith action "gh")
+      (gloom/gh-command-interact request)
+      (let [[action-type & action-args :as event] (get-action action)]
+        (case action-type
+          :delete-message
+          (do
+            (future
+              (try
+                (client/post url
+                             {:body (json/write-str
+                                     {"delete_original" true})
+                              :headers {"Content-type" "application/json"}})
+                (catch Exception e
+                  (prn e))))
+            {:body "ok"
+             :headers {"Content-type" "application/json"}
+             :status 200})
 
-    (case action-type
+          :list-cards
+          (let [[_ search] event]
+            (future
+              (try
+                (client/post url
+                             {:body (json/write-str
+                                     (assoc (list-cards-response search (:cards (search-cards (parse-query search))))
+                                            "replace_original" true))
+                              :headers {"Content-type" "application/json"}})
+                (catch Exception e
+                  (prn e))))
+            {:body "ok"
+             :headers {"Content-type" "application/json"}
+             :status 200})
 
-      :delete-message
-      (do
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 {"delete_original" true})
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
+          :view-card
+          (let [[_ slug] event]
+            (future
+              (try
+                (client/post url
+                             {:body (json/write-str
+                                     (assoc (card-response "" [(get-card slug)] 0)
+                                            "replace_original" true))
+                              :headers {"Content-type" "application/json"}})
+                (catch Exception e
+                  (prn e))))
+            {:body "ok"
+             :headers {"Content-type" "application/json"}
+             :status 200})
 
-      :list-cards
-      (let [[_ search] event]
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 (assoc (list-cards-response search (:cards (search-cards (parse-query search))))
-                                        "replace_original" true))
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      :view-card
-      (let [[_ slug] event]
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 (assoc (card-response "" [(get-card slug)] 0)
-                                        "replace_original" true))
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      :getcard
-      (let [[_ search index] event]
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 (assoc (card-response search
-                                                       (:cards (search-cards (parse-query search)))
-                                                       index)
-                                        "replace_original" true))
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200}))))
+          :getcard
+          (let [[_ search index] event]
+            (future
+              (try
+                (client/post url
+                             {:body (json/write-str
+                                     (assoc (card-response search
+                                                           (:cards (search-cards (parse-query search)))
+                                                           index)
+                                            "replace_original" true))
+                              :headers {"Content-type" "application/json"}})
+                (catch Exception e
+                  (prn e))))
+            {:body "ok"
+             :headers {"Content-type" "application/json"}
+             :status 200}))))))
 
 (def my-routes
   (routes

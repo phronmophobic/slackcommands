@@ -1,6 +1,8 @@
 (ns slackcommands.gloom
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
+            [clj-http.client :as client]
+            [clojure.core.memoize :as memo]
             [clojure.data.json :as json])
   #_(:import com.github.benmanes.caffeine.cache.Caffeine
            java.util.concurrent.TimeUnit))
@@ -30,6 +32,143 @@
 
 (defn card-initiative [card]
   (parse-long (:initiative card)))
+
+(def ^:dynamic action-data nil)
+(defn -get-action [s]
+  (assert action-data)
+  action-data)
+(def one-day (* 1000 86400))
+(def get-action (memo/ttl -get-action :ttl/threshold one-day))
+(defn make-action [data]
+  (binding [action-data data]
+    (let [s (str "gh" (hash data))]
+      (get-action s)
+      s)))
+
+(defn list-cards-response [cards]
+  (let [header {"type" "section"
+                "text" {"type" "mrkdwn",
+                        "text" "all cards"}
+                "accessory" {"type" "button"
+                             "text" {"type" "plain_text"
+                                     "text" "delete"}
+                             "value" (make-action [:delete-message])}}
+        main-blocks (for [[i card] (map-indexed vector cards)]
+                      {"type" "section"
+                       "text" {"type" "mrkdwn",
+                               "text" (str
+                                       ;; (:character-xws card " ") " "
+                                       "*" (:name card) "*: "
+                                       "lvl " (:level card) " "
+                                       "(" (:initiative card) ")"
+                                       " ")}
+                       "accessory" {"type" "button"
+                                    "text" {"type" "plain_text"
+                                            "text" "view"}
+                                    "value" (make-action [:getcard cards i])}
+                       })]
+    {"response_type" "in_channel"
+     "blocks" (into [header]
+                    main-blocks)}))
+
+(defn card-response [cards index]
+  (let [card (nth cards index)
+        main-blocks [{"type" "section",
+                      "text" {"type" "mrkdwn",
+                              "text"
+                              (str (inc index) " of " (count cards) " matches.")}
+                      "accessory" {"type" "button"
+                                   "text" {"type" "plain_text"
+                                           "text" "delete"}
+                                   "value" (make-action [:delete-message])}}
+
+                     {"type" "divider"}
+                     {"type" "image",
+                      "title" {"type" "plain_text",
+                               "text" (str (:character-xws card) ": "
+                                           (:name card))},
+                      "image_url" (image-url card)
+                      "alt_text" (str (:character-xws card) ": " (:name card))}]]
+    {"response_type" "in_channel"
+     "blocks"
+     (into main-blocks
+           (when (> (count cards) 1)
+             [{"type" "divider"}
+              {"type" "actions",
+               "elements"
+               (into []
+                     (concat
+                      (for [i (range (max 0 (dec index))
+                                     (min (count cards)
+                                          (+ index 5)))
+                            :when (not= i index)
+                            :let [card (nth cards i)]]
+                        {"type" "button",
+                         "text"
+                         {"type" "plain_text", "text" (:name card)}
+                         "value" (make-action [:getcard cards i])})
+                      [{"type" "button",
+                          "text"
+                        {"type" "plain_text", "text" "..."}
+                        "value" (make-action [:list-cards cards])}]))
+               }]))})
+  )
+
+(defn gh-command-interact [request]
+  (let [payload (json/read-str (get (:form-params request) "payload"))
+        url (get payload "response_url")
+        action (-> payload
+                   (get "actions")
+                   first
+                   (get "value"))
+        [action-type & action-args :as event] (get-action action)]
+
+    (case action-type
+
+      :delete-message
+      (do
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 {"delete_original" true})
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
+      :list-cards
+      (let [[_ cards] event]
+            (future
+              (try
+                (client/post url
+                             {:body (json/write-str
+                                     (assoc (list-cards-response cards)
+                                            "replace_original" true))
+                              :headers {"Content-type" "application/json"}})
+                (catch Exception e
+                  (prn e))))
+            {:body "ok"
+             :headers {"Content-type" "application/json"}
+             :status 200})
+
+      :getcard
+      (let [[_ cards index] event]
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 (assoc (card-response cards
+                                                       index)
+                                        "replace_original" true))
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200}))))
 
 ;; LoadingCache<Key, Graph> graphs = Caffeine.newBuilder()
 ;;     .weakKeys()
@@ -458,8 +597,8 @@
       (let [cards (query-cards cards text)]
         {:body (if (seq cards)
                  (json/write-str
-
-                  {"response_type" "in_channel"
+                  (card-response cards 0)
+                  #_{"response_type" "in_channel"
                    "blocks" (cards-block cards)})
                  "No cards found.")
          :headers {"Content-type" "application/json"}
