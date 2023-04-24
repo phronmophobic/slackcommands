@@ -33,6 +33,10 @@
 (defn card-initiative [card]
   (parse-long (:initiative card)))
 
+(defn image-url [card]
+  (str "https://raw.githubusercontent.com/any2cards/worldhaven/master/images/"
+       (:image card)))
+
 (def ^:dynamic action-data nil)
 (defn -get-action [s]
   (assert action-data)
@@ -313,9 +317,7 @@
 
 
 
-(defn image-url [card]
-  (str "https://raw.githubusercontent.com/any2cards/worldhaven/master/images/"
-       (:image card)))
+
 
 (defn cards-block [cards]
   (into []
