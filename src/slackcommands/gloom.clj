@@ -61,10 +61,11 @@
                       {"type" "section"
                        "text" {"type" "mrkdwn",
                                "text" (str
-                                       ;; (:character-xws card " ") " "
+
                                        "*" (:name card) "*: "
                                        "lvl " (:level card) " "
-                                       "(" (:initiative card) ")"
+                                       "(" (:initiative card) ") - "
+                                       (:character-xws card " ") " "
                                        " ")}
                        "accessory" {"type" "button"
                                     "text" {"type" "plain_text"
