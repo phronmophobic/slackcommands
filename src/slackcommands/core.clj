@@ -10,6 +10,7 @@
             [compojure.core :refer [defroutes routes GET POST DELETE ANY context]
              :as compojure]
             [compojure.route :as route]
+            [slackcommands.gloom :as gloom]
 )
   (:gen-class))
 
@@ -662,6 +663,8 @@
 
 (def my-routes
   (routes
+
+   (ANY "/gloomcard" [] gloom/gloom-command)
 
    (ANY "/getcard" [] hs-command)
    ;; (GET "/index.html" [] (response/resource-response "index.html" {:root "public"}))
