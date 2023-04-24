@@ -312,13 +312,10 @@
 (defn standard-sort [cards]
   (sort-by (juxt
             :character-xws
+            #(= "X" (:level %))
             card-level
             card-initiative)
            cards))
-
-
-
-
 
 (defn cards-block [cards]
   (into []
