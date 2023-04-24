@@ -381,7 +381,7 @@
 (defn token->command [token]
   (cond-let [x]
 
-    (special? token)
+    (special? (str/lower-case token))
     x
 
     (expansion? token)
