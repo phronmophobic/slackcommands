@@ -64,7 +64,7 @@
                                        ":" (:character-xws card " ") ": "
                                        "*" (:name card) "*: "
                                        "lvl " (:level card) " "
-                                       "(" (:initiative card) ") - "
+                                       "(" (:initiative card) ")"
                                        " ")}
                        "accessory" {"type" "button"
                                     "text" {"type" "plain_text"
