@@ -311,8 +311,8 @@
 (defn standard-sort [cards]
   (sort-by (juxt
             :character-xws
-            #(= "X" (:level %))
             card-level
+            #(= "X" (:level %))
             card-initiative)
            cards))
 
