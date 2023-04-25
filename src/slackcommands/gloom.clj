@@ -369,6 +369,12 @@
    "all-characters"
    {:character (vec character-xws?)}
 
+   "all-classes"
+   {:character (vec character-xws?)}
+
+   "all"
+   {:character (vec character-xws?)}
+
    "all-expansions"
    {:expansion (vec (vals expansion?))}
    
