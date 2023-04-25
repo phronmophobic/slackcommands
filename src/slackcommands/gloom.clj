@@ -357,10 +357,6 @@
                       s])))
         cards))
 
-(defn character-filter [character-xws]
-  (filter #(= character-xws
-              (:character-xws %))))
-
 (def special?
   {"mrgreen"
    {:character"redguard"}
@@ -370,6 +366,12 @@
    
    "voidy"
    {:character "voidwarden"}
+
+   "all-characters"
+   {:character (vec character-xws?)}
+
+   "all-expansions"
+   {:expansion (vec (vals expansion?))}
    
    })
 
