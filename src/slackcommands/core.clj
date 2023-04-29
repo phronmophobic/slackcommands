@@ -11,6 +11,7 @@
              :as compojure]
             [compojure.route :as route]
             [slackcommands.gloom :as gloom]
+            [slackcommands.party :as party]
 )
   (:gen-class))
 
@@ -685,14 +686,8 @@
 
 
    (ANY "/party" []
-        {:body (json/write-str
-                {"response_type" "in_channel"
-                 "blocks" [{"type" "section"
-                            "text" {"type" "plain_text"
-                                    "emoji" true
-                                    "text" ":party: :party_parrot: :penguinparty: :partytoad: :party-blob: :pandaparty: :meow-party: :this-is-fine-party:"}}]})
-         :headers {"Content-type" "application/json"}
-         :status 200})
+        party/party-handler
+        )
 
    (ANY "/parrot" []
         {:body (json/write-str
