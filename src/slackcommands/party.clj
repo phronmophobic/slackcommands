@@ -25,7 +25,13 @@
     (when (.exists pf)
       (slurp pf))))
 
+(defn list-parties []
+  (sort
+   (eduction
+    (filter #(.isFile %))
+    (map #(.getName %))
 
+    (.listFiles (io/file "parties")))))
 
 (defn party-handler [request]
   (let [text (get-in request [:form-params "text"])
@@ -35,8 +41,17 @@
       ;; get
       1
       (let [party-name (str/trim text)
-            party (if (= "" party-name)
+            party (case party-name
+
+                    ""
                     ":party: :party_parrot: :penguinparty: :partytoad: :party-blob: :pandaparty: :meow-party: :this-is-fine-party:"
+
+                    "?"
+                    (str "```\n"
+                         (clojure.string/join ", " (list-parties))
+                         "\n```")
+
+                    ;; else
                     (try
                       (get-party party-name)
                       (catch IllegalArgumentException e
