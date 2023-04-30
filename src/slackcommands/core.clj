@@ -12,6 +12,7 @@
             [compojure.route :as route]
             [slackcommands.gloom :as gloom]
             [slackcommands.party :as party]
+            [slackcommands.ai :as ai]
 )
   (:gen-class))
 
@@ -698,6 +699,12 @@
                                     "text" ":party_parrot: :clj-parrot: :shipitparrot: :pirateparrot: :parrot: :parrot_mustache: :fixparrot: :sad_parrot: :fast-parrot: :conga_parrot: :mask-parrot: :portalparrot: :coffee_parrot: :deal_with_it_parrot:"}}]})
          :headers {"Content-type" "application/json"}
          :status 200})
+
+   (ANY "/terminator-image" []
+        ai/image-command)
+
+   (ANY "/terminator-chat" []
+        ai/chat-command)
 
    (GET "/debug" []
         {:body (json/write-str (card-response "Onyx Magescribe"
