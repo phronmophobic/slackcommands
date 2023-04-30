@@ -40,10 +40,7 @@
 
     {:body (json/write-str
             {"response_type" "in_channel"
-             "blocks" [{"type" "section"
-                        #_#_"text" {"type" "plain_text"
-                                "emoji" true
-                                "text" ":waitingcat:"}}]}) 
+             }) 
      :headers {"Content-type" "application/json"}
      :status 200}
 
@@ -87,10 +84,7 @@
 
     {:body (json/write-str
             {"response_type" "in_channel"
-             #_#_"blocks" [{"type" "section"
-                        "text" {"type" "plain_text"
-                                "emoji" true
-                                "text" ":waitingcat:"}}]})
+             })
      :headers {"Content-type" "application/json"}
      :status 200}
 
