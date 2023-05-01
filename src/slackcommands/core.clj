@@ -596,10 +596,16 @@
         action (-> payload
                    (get "actions")
                    first
-                   (get "value"))]
+                   (get "value"))
+        action-id (-> payload
+                      (get "actions")
+                      first
+                      (get "action_id"))]
     (cond
 
-      (.startsWith action "ai")
+      (or (.startsWith action "ai")
+          (and action-id
+               (.startsWith action-id "ai")))
       (ai/ai-command-interact request)
 
       (.startsWith action "gh")

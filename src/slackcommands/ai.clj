@@ -2,6 +2,7 @@
   (:require [clojure.java.io :as io]
             [wkok.openai-clojure.api :as api]
             [clojure.data.json :as json]
+            [clojure.string :as str]
             [clojure.core.memoize :as memo]
             [clj-http.client :as client]
             [clojure.edn :as edn]))
@@ -11,33 +12,77 @@
 (def api-key (:chatgpt/api-key
               (edn/read-string (slurp "secrets.edn"))))
 
+(defn send-chat-response
+  ([response-url thread-ts text]
+   (send-chat-response response-url thread-ts [] text))
+  ([response-url thread-ts messages text]
+   (when (seq (clojure.string/trim text))
+     (future
+       (let [messages (conj messages {:role "user" :content text})
+             response (api/create-chat-completion {:model "gpt-3.5-turbo"
+                                                   :messages messages}
+                                                  {:api-key api-key})
+             message (-> response
+                         :choices
+                         first
+                         :message)
+             chat-response (:content message)
+
+             full-response (clojure.string/join "\n\n"
+                                  (into []
+                                        (comp (map (fn [{:keys [role content]}]
+                                                     (case role
+                                                       "user" (str "*" content "*")
+                                                       "assistant"  content))))
+                                        (take-last 2
+                                                   (conj messages
+                                                         message))))]
+         (try
+           (doseq [chunk (partition-all 2999 full-response)
+                   :let [subresponse (apply str chunk)]]
+             (client/post response-url
+                          {:body (json/write-str
+                                  (merge
+                                   {
+                                    "response_type" "in_channel",
+                                    "blocks"
+                                    [{"type" "section"
+                                      "text" {"type" "mrkdwn"
+                                              "text" subresponse}}
+                                     {
+                                      "dispatch_action" true,
+                                      "type" "input",
+                                      "element" {
+                                                 "type" "plain_text_input",
+                                                 "action_id" (make-action
+                                                              [:chat-more
+                                                               (conj messages message)])
+                                                 },
+                                      "label" {
+                                               "type" "plain_text",
+                                               "text" "yes, and?",
+                                               "emoji" true
+                                               }
+                                      }
+                                     ]
+                                    ;; "thread_ts" thread-ts
+                                    "replace_original" false}
+                                   (when thread-ts
+                                     {"thread_ts" thread-ts}))
+                                  )
+                           :headers {"Content-type" "application/json"}}))
+           (catch Exception e
+             (prn "message length:" (count full-response))
+             (prn e)))))))
+  )
 
 (defn chat-command [request]
   ;; gpt-3.5-turbo
   (let [text (get-in request [:form-params "text"])
-        response-url (get-in request [:form-params "response_url"])]
-
-    (when (seq (clojure.string/trim text))
-      (future
-        (let [response (api/create-chat-completion {:model "gpt-3.5-turbo"
-                                                    :messages [{:role "user" :content text}]}
-                                                   {:api-key api-key})
-              chat-response (-> response
-                                :choices
-                                first
-                                :message
-                                :content)]
-          (try
-            (client/post response-url
-                         {:body (json/write-str
-                                 {
-                                  "response_type" "in_channel",
-                                  "text" chat-response
-
-                                  "replace_original" "true"})
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))))
+        response-url (get-in request [:form-params "response_url"])
+        ]
+    (println "chat" ": " text)
+    (send-chat-response response-url nil text)
 
     {:body (json/write-str
             {"response_type" "in_channel"
@@ -91,8 +136,27 @@
                    (get "actions")
                    first
                    (get "value"))
-        [action-type & action-args :as event] (get-action action)]
+        action-id (-> payload
+                      (get "actions")
+                      first
+                      (get "action_id"))
+        [action-type & action-args :as event]
+        (cond
+          (.startsWith action "ai")
+          (get-action action)
+
+          (.startsWith action-id "ai")
+          (get-action action-id))]
     (case action-type
+      :chat-more
+      (let [[_ messages] event]
+        (let [ts (get-in payload ["message" "thread_ts"]
+                         (get-in payload ["message" "ts"]))]
+          (send-chat-response url ts messages action))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
       :get-image
       (let [[_ prompt urls index] event]
         (future
@@ -125,6 +189,7 @@
 (defn image-command [request]
   (let [text (get-in request [:form-params "text"])
         response-url (get-in request [:form-params "response_url"])]
+    (println "image: " text)
     (when (seq (clojure.string/trim text))
       (future
         (let [response (api/create-image {:prompt text
