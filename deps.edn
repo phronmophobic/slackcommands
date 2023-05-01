@@ -2,9 +2,12 @@
         org.clojure/clojure {:mvn/version "1.11.1"}
         clj-http/clj-http {:mvn/version "3.10.1"}
 
-        http-kit/http-kit {:mvn/version "2.4.0-alpha6"}
-        compojure/compojure {:mvn/version "1.6.1"}
-        ring/ring {:mvn/version "1.8.1"}
+        http-kit/http-kit {:mvn/version
+                           ;;"2.6.0"
+                           "2.7.0-beta2"
+                           }
+        compojure/compojure {:mvn/version "1.7.0"}
+        ring/ring {:mvn/version "1.10.0"}
         org.clojure/core.memoize {:mvn/version "1.0.257"}
 
         org.clojure/data.json {:mvn/version "1.0.0"}
