@@ -12,8 +12,7 @@
             [compojure.route :as route]
             [slackcommands.gloom :as gloom]
             [slackcommands.party :as party]
-            [slackcommands.ai :as ai]
-)
+            [slackcommands.ai :as ai])
   (:gen-class))
 
 
@@ -598,8 +597,15 @@
                    (get "actions")
                    first
                    (get "value"))]
-    (if (.startsWith action "gh")
+    (cond
+
+      (.startsWith action "ai")
+      (ai/ai-command-interact request)
+
+      (.startsWith action "gh")
       (gloom/gh-command-interact request)
+
+      :else
       (let [[action-type & action-args :as event] (get-action action)]
         (case action-type
           :delete-message
@@ -703,6 +709,11 @@
    (ANY "/terminator-image" []
         ai/image-command)
 
+
+   (route/files "/aimages/"
+                {:root (.getAbsolutePath ai/aimage-dir)})
+
+
    (ANY "/terminator-chat" []
         ai/chat-command)
 
@@ -726,12 +737,16 @@
 
 (comment
   (def server (server/run-server #'my-app {:port 488}))
+  (def server2 (server/run-server #'my-app {:port 3000}))
+
   )
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (def server (server/run-server #'my-app {:port 477}))
+  (do
+    (def server (server/run-server #'my-app {:port 477}))
+    (def server2 (server/run-server #'my-app {:port 3000})))
   )
 
 
