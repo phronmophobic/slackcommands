@@ -150,12 +150,16 @@
     (case action-type
       :chat-more
       (let [[_ messages] event]
-        (let [ts (get-in payload ["message" "thread_ts"]
-                         (get-in payload ["message" "ts"]))]
-          (send-chat-response url ts messages action))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
+        (if (= action "image")
+          (do
+            "convert to image prompt"
+            )
+         (let [ts (get-in payload ["message" "thread_ts"]
+                          (get-in payload ["message" "ts"]))]
+           (send-chat-response url ts messages action)
+           {:body "ok"
+            :headers {"Content-type" "application/json"}
+            :status 200})))
 
       :get-image
       (let [[_ prompt urls index] event]
