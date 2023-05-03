@@ -23,67 +23,66 @@
               (edn/read-string (slurp "secrets.edn"))))
 
 (defn send-chat-response
-  ([response-url thread-ts text]
-   (send-chat-response response-url thread-ts [] text))
-  ([response-url thread-ts messages text]
-   (when (seq (clojure.string/trim text))
-     (future
-       (let [messages (conj messages {:role "user" :content text})
-             response (api/create-chat-completion {:model "gpt-3.5-turbo"
-                                                   :messages messages}
-                                                  {:api-key api-key})
-             message (-> response
-                         :choices
-                         first
-                         :message)
-             chat-response (:content message)
+  [{:keys [response-url thread-ts messages text]}]
+  (let [messages (or messages [])]
+    (when (seq (clojure.string/trim text))
+      (future
+        (let [messages (conj messages {:role "user" :content text})
+              response (api/create-chat-completion {:model "gpt-3.5-turbo"
+                                                    :messages messages}
+                                                   {:api-key api-key})
+              message (-> response
+                          :choices
+                          first
+                          :message)
+              chat-response (:content message)
 
-             full-response (clojure.string/join "\n\n"
-                                  (into []
-                                        (comp (map (fn [{:keys [role content]}]
-                                                     (case role
-                                                       "user" (str "*" content "*")
-                                                       "assistant"  content))))
-                                        (take-last 2
-                                                   (conj messages
-                                                         message))))]
-         (try
-           (doseq [chunk (partition-all 2999 full-response)
-                   :let [subresponse (apply str chunk)]]
-             (client/post response-url
-                          {:body (json/write-str
-                                  (merge
-                                   {
-                                    "response_type" "in_channel",
-                                    "blocks"
-                                    [{"type" "section"
-                                      "text" {"type" "mrkdwn"
-                                              "text" subresponse}}
-                                     {
-                                      "dispatch_action" true,
-                                      "type" "input",
-                                      "element" {
-                                                 "type" "plain_text_input",
-                                                 "action_id" (make-action
-                                                              [:chat-more
-                                                               (conj messages message)])
-                                                 },
-                                      "label" {
-                                               "type" "plain_text",
-                                               "text" "yes, and?",
-                                               "emoji" true
-                                               }
-                                      }
-                                     ]
-                                    ;; "thread_ts" thread-ts
-                                    "replace_original" false}
-                                   (when thread-ts
-                                     {"thread_ts" thread-ts}))
-                                  )
-                           :headers {"Content-type" "application/json"}}))
-           (catch Exception e
-             (prn "message length:" (count full-response))
-             (prn e)))))))
+              full-response (clojure.string/join "\n\n"
+                                                 (into []
+                                                       (comp (map (fn [{:keys [role content]}]
+                                                                    (case role
+                                                                      "user" (str "*" content "*")
+                                                                      "assistant"  content))))
+                                                       (take-last 2
+                                                                  (conj messages
+                                                                        message))))]
+          (try
+            (doseq [chunk (partition-all 2999 full-response)
+                    :let [subresponse (apply str chunk)]]
+              (client/post response-url
+                           {:body (json/write-str
+                                   (merge
+                                    {
+                                     "response_type" "in_channel",
+                                     "blocks"
+                                     [{"type" "section"
+                                       "text" {"type" "mrkdwn"
+                                               "text" subresponse}}
+                                      {
+                                       "dispatch_action" true,
+                                       "type" "input",
+                                       "element" {
+                                                  "type" "plain_text_input",
+                                                  "action_id" (make-action
+                                                               [:chat-more
+                                                                (conj messages message)])
+                                                  },
+                                       "label" {
+                                                "type" "plain_text",
+                                                "text" "yes, and?",
+                                                "emoji" true
+                                                }
+                                       }
+                                      ]
+                                     ;; "thread_ts" thread-ts
+                                     "replace_original" false}
+                                    (when thread-ts
+                                      {"thread_ts" thread-ts}))
+                                   )
+                            :headers {"Content-type" "application/json"}}))
+            (catch Exception e
+              (prn "message length:" (count full-response))
+              (prn e)))))))
   )
 
 (defn chat-command [request]
@@ -92,7 +91,9 @@
         response-url (get-in request [:form-params "response_url"])
         ]
     (println "chat" ": " text)
-    (send-chat-response response-url nil text)
+    (send-chat-response
+     {:response-url response-url
+      :text text})
 
     {:body (json/write-str
             {"response_type" "in_channel"
@@ -156,7 +157,13 @@
             )
          (let [ts (get-in payload ["message" "thread_ts"]
                           (get-in payload ["message" "ts"]))]
-           (send-chat-response url ts messages action)
+
+           (send-chat-response
+            {:response-url url
+             :thread-ts ts
+             :messages messages
+             :text action})
+
            {:body "ok"
             :headers {"Content-type" "application/json"}
             :status 200})))
