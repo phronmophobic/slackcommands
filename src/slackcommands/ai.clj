@@ -7,7 +7,17 @@
             [clj-http.client :as client]
             [clojure.edn :as edn]))
 
-
+(def ^:dynamic action-data nil)
+(defn -get-action [s]
+  (assert action-data)
+  action-data)
+(def one-day (* 1000 86400))
+(defonce get-action (memo/ttl -get-action :ttl/threshold (* 2 one-day)))
+(defn make-action [data]
+  (binding [action-data data]
+    (let [s (str "ai" (hash data))]
+      (get-action s)
+      s)))
 
 (def api-key (:chatgpt/api-key
               (edn/read-string (slurp "secrets.edn"))))
@@ -94,17 +104,7 @@
     )
 )
 
-(def ^:dynamic action-data nil)
-(defn -get-action [s]
-  (assert action-data)
-  action-data)
-(def one-day (* 1000 86400))
-(defonce get-action (memo/ttl -get-action :ttl/threshold one-day))
-(defn make-action [data]
-  (binding [action-data data]
-    (let [s (str "ai" (hash data))]
-      (get-action s)
-      s)))
+
 
 (defn image-response [prompt urls index]
   (let [url (nth urls index)
