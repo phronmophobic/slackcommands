@@ -197,10 +197,10 @@
     (when (seq (clojure.string/trim text))
       (future
         (let [response (api/create-image {:prompt text
-                                          :n 8
+                                          :n 4
                                           :size
-                                          ;; "256x256"
-                                          "512x512"
+                                          "256x256"
+                                          ;; "512x512"
                                           ;; "1024x1024"
                                           }
                                          {:api-key api-key})
