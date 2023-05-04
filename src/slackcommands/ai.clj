@@ -5,6 +5,7 @@
             [clojure.string :as str]
             [clojure.core.memoize :as memo]
             [clj-http.client :as client]
+            [slingshot.slingshot :refer [try+]]
             [clojure.zip :as z]
             [clojure.edn :as edn]))
 
@@ -228,53 +229,71 @@
     (println "image: " text)
     (when (seq (clojure.string/trim text))
       (future
-        (let [response (api/create-image {:prompt text
-                                          :n 4
-                                          :size
-                                          "256x256"
-                                          ;; "512x512"
-                                          ;; "1024x1024"
-                                          }
-                                         {:api-key api-key})
+        (try+
+         (let [response (api/create-image {:prompt text
+                                           :n 4
+                                           :size
+                                           "256x256"
+                                           ;; "512x512"
+                                           ;; "1024x1024"
+                                           }
+                                          {:api-key api-key})
 
-              response-id (str (random-uuid))
-              ;; image-url (-> response
-              ;;               :data
-              ;;               first
-              ;;               :url)
-              host (:server-name request)
-              ;; slack won't show preview images from just any port
-              port 3000
-              urls (into []
-                         (comp (map :url)
-                               (map-indexed
-                                (fn [i url]
-                                  (let [fname (str response-id "-" i ".png")]
-                                    (save-image fname
-                                                url)
-                                    fname)))
-                               (map (fn [fname]
-                                      (str "http://" host ":" port "/aimages/" fname))))
-                         (:data response))]
-          (try
-            (client/post response-url
-                         {:body (json/write-str
-                                 (image-response text urls 0)
-                                 #_{
-                                  "response_type" "in_channel",
-                                  "blocks"
-                                  [{
-                                    "type" "image",
-                                    "image_url" image-url
-                                    "alt_text" text
-                                    ;; "text" image-url
-                                    }
-                                   ]
+               response-id (str (random-uuid))
+               ;; image-url (-> response
+               ;;               :data
+               ;;               first
+               ;;               :url)
+               host (:server-name request)
+               ;; slack won't show preview images from just any port
+               port 3000
+               urls (into []
+                          (comp (map :url)
+                                (map-indexed
+                                 (fn [i url]
+                                   (let [fname (str response-id "-" i ".png")]
+                                     (save-image fname
+                                                 url)
+                                     fname)))
+                                (map (fn [fname]
+                                       (str "http://" host ":" port "/aimages/" fname))))
+                          (:data response))]
 
-                                  "replace_original" true})
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))))
+           (client/post response-url
+                        {:body (json/write-str
+                                (image-response text urls 0))
+                         :headers {"Content-type" "application/json"}})
+           )
+         (catch [:status 400] {:keys [body]}
+           (let [msg (try
+                       (let [payload (json/read-str body)]
+                         (get-in payload ["error" "message"]))
+                       (catch Exception e
+                         "Unknown Error"))]
+             (client/post response-url
+                          {:body (json/write-str
+                                  {
+                                   "response_type" "in_channel",
+                                   "blocks"
+                                   [{"type" "section"
+                                     "text" {"type" "plain_text"
+                                             "emoji" true
+                                             "text" (str ":shame: :frogsiren: " msg)}}]
+                                   "replace_original" true})
+                           :headers {"Content-type" "application/json"}}))
+           )
+         (catch Exception e
+           (client/post response-url
+                        {:body (json/write-str
+                                {
+                                 "response_type" "in_channel",
+                                 "blocks"
+                                 [{"type" "section"
+                                   "text" {"type" "plain_text"
+                                           "emoji" true
+                                           "text" (str ":frogsiren: :" (ex-message e))}}]
+                                 "replace_original" true})
+                         :headers {"Content-type" "application/json"}})))))
 
     {:body (json/write-str
             {"response_type" "in_channel"
