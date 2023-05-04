@@ -5,6 +5,7 @@
             [clojure.string :as str]
             [clojure.core.memoize :as memo]
             [clj-http.client :as client]
+            [clojure.zip :as z]
             [clojure.edn :as edn]))
 
 (def ^:dynamic action-data nil)
@@ -35,7 +36,6 @@
                           :choices
                           first
                           :message)
-              chat-response (:content message)
 
               full-response (clojure.string/join "\n\n"
                                                  (into []
@@ -130,6 +130,26 @@
                "value" (make-action [:get-image prompt urls (mod (inc index) (count urls))])}]}])})
   )
 
+(defn block-zip [blocks]
+  (z/zipper vector?
+            seq
+            (fn [v children]
+              (into (empty v) children))
+            blocks))
+
+(defn reset-chat-text-input [blocks]
+  (let [zip (block-zip blocks)]
+    (loop [zip zip]
+      (if (z/end? zip)
+        (z/root zip)
+        ;; else
+        (let [m (z/node zip)
+              new-zip (if (= "input" (get m "type"))
+                        (z/replace zip (dissoc m "block_id"))
+                        zip)]
+          (recur (z/next new-zip))))))
+  )
+
 (defn ai-command-interact [request]
   (let [payload (json/read-str (get (:form-params request) "payload"))
         url (get payload "response_url")
@@ -157,16 +177,21 @@
             )
          (let [ts (get-in payload ["message" "thread_ts"]
                           (get-in payload ["message" "ts"]))]
-
            (send-chat-response
             {:response-url url
              :thread-ts ts
              :messages messages
              :text action})
+           (future
+             (let [blocks (get-in payload ["message" "blocks"])]
+              (client/post url
+                           {:body (json/write-str
+                                   {"blocks" (reset-chat-text-input blocks)
+                                    "response_type" "in_channel"
+                                    "replace_original" true})
+                            :headers {"Content-type" "application/json"}})))
 
-           {:body "ok"
-            :headers {"Content-type" "application/json"}
-            :status 200})))
+           {:status 200})))
 
       :get-image
       (let [[_ prompt urls index] event]
@@ -184,7 +209,7 @@
          :status 200})
 
       ;; else
-      nil)))
+      )))
 
 (def aimage-dir
   (doto (io/file "aimages")
