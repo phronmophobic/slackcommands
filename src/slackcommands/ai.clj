@@ -24,66 +24,101 @@
 (def api-key (:chatgpt/api-key
               (edn/read-string (slurp "secrets.edn"))))
 
+
+(defmacro wrap-exception [response-url & body]
+  `(let [response-url# ~response-url]
+     (try+
+      ~@body
+      (catch [:status 400] {body# :body}
+        (clojure.pprint/pprint body#)
+        (let [msg# (try
+                     (let [payload# (json/read-str body#)]
+                       (get-in payload# ["error" "message"]))
+                     (catch Exception e#
+                       "Unknown Error"))]
+          (client/post response-url#
+                       {:body (json/write-str
+                               {
+                                "response_type" "in_channel",
+                                "blocks"
+                                [{"type" "section"
+                                  "text" {"type" "plain_text"
+                                          "emoji" true
+                                          "text" (str ":shame: :frogsiren: " msg#)}}]
+                                "replace_original" true})
+                        :headers {"Content-type" "application/json"}})))
+      (catch Exception e#
+        (client/post response-url#
+                     {:body (json/write-str
+                             {
+                              "response_type" "in_channel",
+                              "blocks"
+                              [{"type" "section"
+                                "text" {"type" "plain_text"
+                                        "emoji" true
+                                        "text" (str ":frogsiren: :" (ex-message e#))}}]
+                              "replace_original" true})
+                      :headers {"Content-type" "application/json"}})))))
+
 (defn send-chat-response
   [{:keys [response-url thread-ts messages text]}]
   (let [messages (or messages [])]
     (when (seq (clojure.string/trim text))
       (future
-        (let [messages (conj messages {:role "user" :content text})
-              response (api/create-chat-completion {:model "gpt-3.5-turbo"
-                                                    :messages messages}
-                                                   {:api-key api-key})
-              message (-> response
-                          :choices
-                          first
-                          :message)
+        (wrap-exception
+         response-url
+         (let [messages (conj messages {:role "user" :content text})
+               response (api/create-chat-completion {:model "gpt-3.5-turbo"
+                                                     :messages messages}
+                                                    {:api-key api-key})
+               message (-> response
+                           :choices
+                           first
+                           :message)
 
-              full-response (clojure.string/join "\n\n"
-                                                 (into []
-                                                       (comp (map (fn [{:keys [role content]}]
-                                                                    (case role
-                                                                      "user" (str "*" content "*")
-                                                                      "assistant"  content))))
-                                                       (take-last 2
-                                                                  (conj messages
-                                                                        message))))]
-          (try
-            (doseq [chunk (partition-all 2999 full-response)
-                    :let [subresponse (apply str chunk)]]
-              (client/post response-url
-                           {:body (json/write-str
-                                   (merge
-                                    {
-                                     "response_type" "in_channel",
-                                     "blocks"
-                                     [{"type" "section"
-                                       "text" {"type" "mrkdwn"
-                                               "text" subresponse}}
-                                      {
-                                       "dispatch_action" true,
-                                       "type" "input",
-                                       "element" {
-                                                  "type" "plain_text_input",
-                                                  "action_id" (make-action
-                                                               [:chat-more
-                                                                (conj messages message)])
-                                                  },
-                                       "label" {
-                                                "type" "plain_text",
-                                                "text" "yes, and?",
-                                                "emoji" true
-                                                }
-                                       }
-                                      ]
-                                     ;; "thread_ts" thread-ts
-                                     "replace_original" false}
-                                    (when thread-ts
-                                      {"thread_ts" thread-ts}))
-                                   )
-                            :headers {"Content-type" "application/json"}}))
-            (catch Exception e
-              (prn "message length:" (count full-response))
-              (prn e)))))))
+               full-response (clojure.string/join "\n\n"
+                                                  (into []
+                                                        (comp (map (fn [{:keys [role content]}]
+                                                                     (case role
+                                                                       "user" (str "*" content "*")
+                                                                       "assistant"  content))))
+                                                        (take-last 2
+                                                                   (conj messages
+                                                                         message))))]
+           
+           (doseq [chunk (partition-all 2999 full-response)
+                   :let [subresponse (apply str chunk)]]
+             (client/post response-url
+                          {:body (json/write-str
+                                  (merge
+                                   {
+                                    "response_type" "in_channel",
+                                    "blocks"
+                                    [{"type" "section"
+                                      "text" {"type" "mrkdwn"
+                                              "text" subresponse}}
+                                     {
+                                      "dispatch_action" true,
+                                      "type" "input",
+                                      "element" {
+                                                 "type" "plain_text_input",
+                                                 "action_id" (make-action
+                                                              [:chat-more
+                                                               (conj messages message)])
+                                                 },
+                                      "label" {
+                                               "type" "plain_text",
+                                               "text" "yes, and?",
+                                               "emoji" true
+                                               }
+                                      }
+                                     ]
+                                    ;; "thread_ts" thread-ts
+                                    "replace_original" false}
+                                   (when thread-ts
+                                     {"thread_ts" thread-ts}))
+                                  )
+                           :headers {"Content-type" "application/json"}})))))))
   )
 
 (defn chat-command [request]
@@ -229,7 +264,8 @@
     (println "image: " text)
     (when (seq (clojure.string/trim text))
       (future
-        (try+
+        (wrap-exception
+         response-url
          (let [response (api/create-image {:prompt text
                                            :n 4
                                            :size
@@ -262,37 +298,6 @@
            (client/post response-url
                         {:body (json/write-str
                                 (image-response text urls 0))
-                         :headers {"Content-type" "application/json"}})
-           )
-         (catch [:status 400] {:keys [body]}
-           (let [msg (try
-                       (let [payload (json/read-str body)]
-                         (get-in payload ["error" "message"]))
-                       (catch Exception e
-                         "Unknown Error"))]
-             (client/post response-url
-                          {:body (json/write-str
-                                  {
-                                   "response_type" "in_channel",
-                                   "blocks"
-                                   [{"type" "section"
-                                     "text" {"type" "plain_text"
-                                             "emoji" true
-                                             "text" (str ":shame: :frogsiren: " msg)}}]
-                                   "replace_original" true})
-                           :headers {"Content-type" "application/json"}}))
-           )
-         (catch Exception e
-           (client/post response-url
-                        {:body (json/write-str
-                                {
-                                 "response_type" "in_channel",
-                                 "blocks"
-                                 [{"type" "section"
-                                   "text" {"type" "plain_text"
-                                           "emoji" true
-                                           "text" (str ":frogsiren: :" (ex-message e))}}]
-                                 "replace_original" true})
                          :headers {"Content-type" "application/json"}})))))
 
     {:body (json/write-str
@@ -326,7 +331,3 @@
 
   (skia/run #'debug)
   ,)
-
-
-
-
