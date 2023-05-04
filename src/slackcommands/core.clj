@@ -715,6 +715,9 @@
    (ANY "/terminator-image" []
         ai/image-command)
 
+   (ANY "/terminator-stable-image" []
+        ai/stable-image-command)
+
 
    (route/files "/aimages/"
                 {:root (.getAbsolutePath ai/aimage-dir)})

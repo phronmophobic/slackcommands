@@ -6,6 +6,8 @@
             [clojure.core.memoize :as memo]
             [clj-http.client :as client]
             [slingshot.slingshot :refer [try+]]
+            [slackcommands.util :as util]
+            [slackcommands.stability :as stability]
             [clojure.zip :as z]
             [clojure.edn :as edn]))
 
@@ -247,16 +249,7 @@
       ;; else
       )))
 
-(def aimage-dir
-  (doto (io/file "aimages")
-    (.mkdirs)))
 
-(defn save-image [fname url]
-  (let [f (io/file aimage-dir fname)]
-    (with-open [is (io/input-stream (io/as-url url))]
-      (io/copy is
-               f)))
-  nil)
 
 (defn image-command [request]
   (let [text (get-in request [:form-params "text"])
@@ -276,23 +269,14 @@
                                           {:api-key api-key})
 
                response-id (str (random-uuid))
-               ;; image-url (-> response
-               ;;               :data
-               ;;               first
-               ;;               :url)
-               host (:server-name request)
-               ;; slack won't show preview images from just any port
-               port 3000
+
                urls (into []
                           (comp (map :url)
                                 (map-indexed
                                  (fn [i url]
                                    (let [fname (str response-id "-" i ".png")]
-                                     (save-image fname
-                                                 url)
-                                     fname)))
-                                (map (fn [fname]
-                                       (str "http://" host ":" port "/aimages/" fname))))
+                                     (util/save-image fname
+                                                      url)))))
                           (:data response))]
 
            (client/post response-url
@@ -306,25 +290,43 @@
      :headers {"Content-type" "application/json"}
      :status 200}))
 
+(defn stable-image-command [request]
+  (let [text (get-in request [:form-params "text"])
+        response-url (get-in request [:form-params "response_url"])]
+    (println "stable image: " text)
+    (when (seq (clojure.string/trim text))
+      (future
+        (wrap-exception
+         response-url
+         (let [urls (stability/create-image text)]
+           (client/post response-url
+                        {:body (json/write-str
+                                (image-response text urls 0))
+                         :headers {"Content-type" "application/json"}})))))
+    {:body (json/write-str
+            {"response_type" "in_channel"})
+     :headers {"Content-type" "application/json"}
+     :status 200}))
+
 (comment
   (def response
     
-  (api/create-image {:prompt "An oracle visiting the real monsters tribe"
-                     :n 5
-                     :size "512x512"}
-                    {:api-key api-key})
+    (api/create-image {:prompt "An oracle visiting the real monsters tribe"
+                       :n 5
+                       :size "512x512"}
+                      {:api-key api-key})
 
     (def response
       )
     ,)
 
-(def imgs
-  (into []
-        (comp (map :url)
-              (map io/as-url)
-              (map ui/image))
-        (:data response))
-  )
+  (def imgs
+    (into []
+          (comp (map :url)
+                (map io/as-url)
+                (map ui/image))
+          (:data response))
+    )
 
   (require '[membrane.skia :as skia]
            '[membrane.ui :as ui])
