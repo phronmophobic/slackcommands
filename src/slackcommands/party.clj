@@ -4,12 +4,13 @@
             [clojure.java.io :as io]))
 
 (defn party-file [party-name]
-  (when (or (not (re-matches #"[a-zA-Z0-9\-_.]+"
+  (when (or (not (re-matches #"[a-zA-Z0-9\-_.:]+"
                              party-name))
             (> (count party-name)
                32))
     (throw (IllegalArgumentException. "Illegal Party!")))
-  (let [party-dir (io/file "parties")]
+  (let [party-dir (io/file "parties")
+        party-name (str/replace party-name #":" "_")]
     (.mkdir party-dir)
 
     (when (> (count (.listFiles party-dir))
