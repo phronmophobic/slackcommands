@@ -54,7 +54,9 @@
 
                     ;; else
                     (try
-                      (get-party party-name)
+                      (if (re-matches #"^:[a-zA-Z0-9-_]+:$" party-name)
+                        (clojure.string/join (repeat 20 party-name))
+                        (get-party party-name))
                       (catch IllegalArgumentException e
                         ":frogsiren:")))]
         
@@ -90,7 +92,7 @@
                    "blocks" [{"type" "section"
                               "text" {"type" "plain_text"
                                       "emoji" true
-                                      "text" ":frogsiren: Party name must match [a-zA-Z0-9-_.]+"}}]})
+                                      "text" ":frogsiren: Party name must match [a-zA-Z0-9-_.:]+"}}]})
            :headers {"Content-type" "application/json"}
            :status 200})))
     
