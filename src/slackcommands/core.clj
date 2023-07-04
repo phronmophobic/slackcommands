@@ -755,9 +755,7 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (do
-    (def server (server/run-server #'my-app {:port 477}))
-    (def server2 (server/run-server #'my-app {:port 3000})))
+  (def server2 (server/run-server #'my-app {:port 3000}))
   )
 
 
