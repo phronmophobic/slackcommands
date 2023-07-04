@@ -720,6 +720,9 @@
    (ANY "/terminator-stable-image" []
         ai/stable-image-command)
 
+   (ANY "/midjourney" []
+        ai/midjourney-image-command)
+
 
    (route/files "/aimages/"
                 {:root (.getAbsolutePath slackcommands.util/aimage-dir)})

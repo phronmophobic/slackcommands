@@ -9,7 +9,8 @@
             [slackcommands.util :as util]
             [slackcommands.stability :as stability]
             [clojure.zip :as z]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn]
+            [com.phronemophobic.discord.api :as discord]))
 
 (def ^:dynamic action-data nil)
 (defn -get-action [s]
@@ -235,6 +236,15 @@
                "value" (make-action [:get-image prompt urls (mod (inc index) (count urls))])}]}])})
   )
 
+(defn midjourney-image-response [prompt url]
+  (let [main-blocks [ {"type" "image",
+                       "title" {"type" "plain_text",
+                                "text" prompt},
+                       "image_url" url
+                      "alt_text" prompt}]]
+    {"response_type" "in_channel"
+     "blocks" main-blocks}))
+
 (defn block-zip [blocks]
   (z/zipper vector?
             seq
@@ -405,6 +415,46 @@
          :headers {"Content-type" "application/json"}
          :status 200}))))
 
+
+(defn midjourney-help-text []
+  (str
+   "Usage: /midjourney [prompt]
+
+See <https://docs.midjourney.com/docs/models> for more options.
+"))
+
+(defn midjourney-image-command [request]
+  
+  (let [text (get-in request [:form-params "text"])
+        response-url (get-in request [:form-params "response_url"])]
+
+    (if (#{"" "help"} (str/trim text))
+      {:body (json/write-str
+              {"response_type" "in_channel"
+               "blocks" [{"type" "section"
+                          "text" {"type" "mrkdwn"
+                                  "text" (str "```\n" (midjourney-help-text) "\n```")}}]})
+       :headers {"Content-type" "application/json"}
+       :status 200}
+      ;; else
+      (do
+        (println "midjourney: " text)
+        (when (seq (clojure.string/trim text))
+          (future
+            (wrap-exception
+             response-url
+             (let [response (discord/create-image text)]
+               (if-let [url (:url response)]
+                 (client/post response-url
+                              {:body (json/write-str
+                                      (midjourney-image-response text url))
+                               :headers {"Content-type" "application/json"}})
+                 (throw (ex-info "Error" response)))))))
+        {:body (json/write-str
+                {"response_type" "in_channel"})
+         :headers {"Content-type" "application/json"}
+         :status 200}))))
+
 (comment
   (def response
     
@@ -413,8 +463,8 @@
                        :size "512x512"}
                       {:api-key api-key})
 
-    (def response
-      )
+    (def response (discord/create-image text))
+    
     ,)
 
   (def imgs
