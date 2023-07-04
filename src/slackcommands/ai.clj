@@ -26,13 +26,55 @@
 (def api-key (:chatgpt/api-key
               (edn/read-string (slurp "secrets.edn"))))
 
+(def ^:dynamic *retry* nil)
+
+(defmacro wrap-retry [& body]
+  `(let [f# (fn retry# []
+              (binding [*retry* retry#]
+                ~@body))]
+     (f#)))
+
+(defn send-error-msg [response-url err]
+  (let [{:keys [body]} err]
+    (let [msg (try
+                (let [payload (json/read-str body)]
+                  (or 
+                   (get-in payload ["message"])
+                   (get-in payload ["error" "message"])))
+                 (catch Exception e
+                   "Unknown Error"))]
+      (clojure.pprint/pprint body)
+      (let [retry-button {"type" "actions",
+                           "elements"
+                           [{"type" "button",
+                             "text"
+                             {"type" "plain_text", "text" "try again"}
+                             "value" (make-action [:retry *retry*])}]}
+            blocks [{"type" "section"
+                      "text" {"type" "plain_text"
+                              "emoji" true
+                              "text" (str ":whale: " msg)}}]
+            blocks (if *retry*
+                      (conj blocks retry-button)
+                      blocks)]
+        (client/post response-url
+                     {:body (json/write-str
+                             {
+                              "response_type" "in_channel",
+                              "blocks" blocks
+                              "replace_original" true})
+                      :headers {"Content-type" "application/json"}})))))
 
 (defmacro wrap-exception [response-url & body]
   `(let [response-url# ~response-url]
      (try+
       ~@body
+      (catch [:status 500] err#
+        (send-error-msg err#))
+      (catch [:status 429] err#
+        (send-error-msg err#))
       (catch [:status 400] {body# :body}
-        (clojure.pprint/pprint body#)
+
         (let [msg# (try
                      (let [payload# (json/read-str body#)]
                        (get-in payload# ["error" "message"]))
@@ -49,6 +91,18 @@
                                           "text" (str ":shame: :frogsiren: " msg#)}}]
                                 "replace_original" true})
                         :headers {"Content-type" "application/json"}})))
+      (catch :message m#
+        (client/post response-url#
+                     {:body (json/write-str
+                             {
+                              "response_type" "in_channel",
+                              "blocks"
+                              [{"type" "section"
+                                "text" {"type" "plain_text"
+                                        "emoji" true
+                                        "text" (str ":frogsiren: :" (:message m#))}}]
+                              "replace_original" true})
+                      :headers {"Content-type" "application/json"}}))
       (catch Exception e#
         (client/post response-url#
                      {:body (json/write-str
@@ -59,6 +113,19 @@
                                 "text" {"type" "plain_text"
                                         "emoji" true
                                         "text" (str ":frogsiren: :" (ex-message e#))}}]
+                              "replace_original" true})
+                      :headers {"Content-type" "application/json"}}))
+      (catch Object e#
+        (clojure.pprint/pprint e#)
+        (client/post response-url#
+                     {:body (json/write-str
+                             {
+                              "response_type" "in_channel",
+                              "blocks"
+                              [{"type" "section"
+                                "text" {"type" "plain_text"
+                                        "emoji" true
+                                        "text" (str ":frogsiren: :" "Unknown Error")}}]
                               "replace_original" true})
                       :headers {"Content-type" "application/json"}})))))
 
@@ -207,6 +274,23 @@
           (.startsWith action-id "ai")
           (get-action action-id))]
     (case action-type
+
+      :retry
+      (let [[_ retry-fn] event]
+        
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 {"delete_original" true})
+                          :headers {"Content-type" "application/json"}})
+            (retry-fn)
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
       :chat-more
       (let [[_ messages] event]
         (if (= action "image")
@@ -291,22 +375,35 @@
      :status 200}))
 
 (defn stable-image-command [request]
+  
   (let [text (get-in request [:form-params "text"])
         response-url (get-in request [:form-params "response_url"])]
-    (println "stable image: " text)
-    (when (seq (clojure.string/trim text))
-      (future
-        (wrap-exception
-         response-url
-         (let [urls (stability/create-image text)]
-           (client/post response-url
-                        {:body (json/write-str
-                                (image-response text urls 0))
-                         :headers {"Content-type" "application/json"}})))))
-    {:body (json/write-str
-            {"response_type" "in_channel"})
-     :headers {"Content-type" "application/json"}
-     :status 200}))
+
+    (if (#{"" "help"} (str/trim text))
+      {:body (json/write-str
+              {"response_type" "in_channel"
+               "blocks" [{"type" "section"
+                          "text" {"type" "mrkdwn"
+                                  "text" (str "```\n" (stability/help-text) "\n```")}}]})
+       :headers {"Content-type" "application/json"}
+       :status 200}
+      ;; else
+      (do
+        (println "stable image: " text)
+        (when (seq (clojure.string/trim text))
+          (future
+            (wrap-retry
+             (wrap-exception
+              response-url
+              (let [urls (stability/create-image text)]
+                (client/post response-url
+                             {:body (json/write-str
+                                     (image-response text urls 0))
+                              :headers {"Content-type" "application/json"}}))))))
+        {:body (json/write-str
+                {"response_type" "in_channel"})
+         :headers {"Content-type" "application/json"}
+         :status 200}))))
 
 (comment
   (def response
