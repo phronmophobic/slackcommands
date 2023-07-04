@@ -4,6 +4,7 @@
             [slingshot.slingshot :refer [throw+ try+]]
             [org.httpkit.server :as server]
             [ring.util.response :as response]
+            slackcommands.util
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.params]
             [ clojure.core.memoize :as memo]
@@ -720,7 +721,7 @@
 
 
    (route/files "/aimages/"
-                {:root (.getAbsolutePath ai/aimage-dir)})
+                {:root (.getAbsolutePath slackcommands.util/aimage-dir)})
 
 
    (ANY "/terminator-chat" []
