@@ -30,7 +30,7 @@
            (cond-let ~bindings ~@more))))))
 
 (defn parse-tokens [s]
-  (let [regex #"\s?(\"[^\"]+\"|[\S^\"]+)"]
+  (let [regex #"\s?(\"[^\"]+\"[-0-9.]*|[\S^\"]+)"]
     (loop [parts []
            s s]
       (let [[whole part] (re-find regex s)]
@@ -49,13 +49,24 @@
     {:height (parse-long (second x))}
 
     (re-find #"n:([0-9]+)" token)
-    {:num-samples (parse-long (second x))}
+    {:n (parse-long (second x))}
 
     (re-find #"steps:([0-9]+)" token)
     {:steps (parse-long (second x))}
     
-    (re-find #"style:([a-z\-]+)" token)
+    (re-find #"style:([A-Z0-9a-z_\-]+)" token)
     {:style-preset (second x)}
+
+    (re-find #"cfg-scale:([0-9]+)" token)
+    {:cfg-scale (parse-long (second x))}
+
+    (re-find #"\"([^\"]+)\"([-0-9.]+)" token)
+    {:text {:text (second x)
+            :weight (parse-double (nth x 2))}}
+
+    (re-find #"\"([^\"]+)\"" token)
+    {:text {:text (second x)
+            :weight 1}}
     
     :else
     {:text token}))
@@ -81,7 +92,16 @@
 (defn merge-command [command subcommand]
   (merge-with-k (fn [k a b]
                   (case k
-                    :text (str a " " b)
+                    :text
+                    (if (map? b)
+                      (conj a {"text" (:text b)
+                               "weight" (:weight b)})
+                      (if (= 1 (get (last a) "weight"))
+                        (update-in a [(dec (count a)) "text"]
+                                   #(str % " " b))
+                        (conj a {"text" b
+                                 "weight" 1})))
+
                     ;; else
                     b))
               command
@@ -112,17 +132,19 @@
                      #(zero? (mod % 64))))
 (s/def :generation/width ::size)
 (s/def :generation/height ::size)
-(s/def :generation/num-samples (s/int-in 1 11))
+(s/def :generation/n (s/int-in 1 11))
 (s/def :generation/steps #{50 75 100})
 (s/def :generation/style-preset styles)
-(s/def :generation/text string?)
+(s/def :generation/text any? )
+(s/def :generation/cfg-scale integer?)
 
 (s/def ::generation-options
   (s/keys
    :req-un [:generation/text]
    :opt-un [:generation/width
             :generation/height
-            :generation/num-samples
+            :generation/n
+            :generation/cfg-scale
             :generation/steps
             :generation/style-preset]))
 
@@ -130,29 +152,32 @@
   (let [opts (set/rename-keys command
                               {:width "width"
                                :height "height"
-                               :num-samples "samples"
+                               :n "samples"
+                               :cfg-scale "cfg_scale"
                                :steps "steps"
-                               :style-preset "style_preset"})]
-    (-> opts
-        (assoc "text_prompts" [{"text" (:text opts)
-                                "weight" 1}])
-        (dissoc :text))))
+                               :style-preset "style_preset"
+                               :text "text_prompts"})]
+    opts
+    ))
 
 (defn parse-query [s]
   (let [tokens (parse-tokens s)
         command (transduce
                  (map token->command)
                  (completing merge-command)
-                 {}
+                 {:text []}
                  tokens)
         ;; with defaults
-        command (merge {:num-samples 4
+        command (merge {:n 8
+                        :style-preset "enhance"
+                        :cfg-scale 20
                         :steps 75}
                        command)
         valid? (s/valid? ::generation-options command)]
     (when (not valid?)
       (throw (ex-info "Invalid options"
-                      {:command command})))
+                      {:command command
+                       :message "Invalid options."})))
     
     (command->opts command)))
 
@@ -174,7 +199,9 @@
 (def engine "stable-diffusion-512-v2-1")
 
 (defn create-image [prompt]
-  (let [generation-opts (parse-query prompt)
+  (let [generation-opts (if (string? prompt)
+                          (parse-query prompt)
+                          prompt)
         response
         (client/post (str base-api-url "/v1/generation/"engine "/text-to-image")
                      {:body (json/write-str
@@ -195,3 +222,20 @@
                    (get payload "artifacts"))]
     urls))
 
+(defn help-text []
+  (str
+   "Usage: /saimage [query]
+
+Options:
+ style:<style>
+ cfg-scale:<scale 0-35> How strictly the diffusion process adheres to the prompt text (higher values keep your image closer to your prompt)
+
+Available styles: " (clojure.string/join ", " styles) "
+
+Example:
+
+/saimage A rad looking cow on a rooftop
+/saimage style:comic-book An epic fight between tweetica and Ares
+/saimage style:neon-punk \"high priority\"10 other text cfg-scale:30
+
+"))
