@@ -36,6 +36,7 @@
 
 (defn party-handler [request]
   (let [text (get-in request [:form-params "text"])
+        text (str/trim text)
         parts (clojure.string/split text #"\s+" 2)]
 
     (case (count parts)
