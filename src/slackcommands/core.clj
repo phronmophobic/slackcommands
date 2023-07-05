@@ -758,7 +758,12 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
+
+  ;; initiation protocol
+  ;; 1. start server
   (def server2 (server/run-server #'my-app {:port 3000}))
+  ;; 2. run com.phronemophobic.discord.viewer/start-browser-server
+  ;; 3. run com.phronemophobic.discord.discord/run-discord-bot!
   )
 
 
