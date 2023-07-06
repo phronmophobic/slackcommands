@@ -239,3 +239,41 @@ Example:
 /saimage style:neon-punk \"high priority\"10 other text cfg-scale:30
 
 "))
+
+#_(client/post "http://example.org" {:multipart [{:name "title" :content "My Awesome Picture"}
+                                               {:name "Content/type" :content "image/jpeg"}
+                                               {:name "foo.txt" :part-name "eggplant" :content "Eggplants"}
+                                               {:name "file" :content (clojure.java.io/file "pic.jpg")}]
+                                   ;; You can also optionally pass a :mime-subtype
+                                   :mime-subtype "foo"})
+
+(defn edit-image [input mask prompt]
+  (let [generation-opts (parse-query prompt)
+        samples 4
+        response
+        (with-open [is (io/input-stream input)
+                    mask-is (io/input-stream mask)]
+          (client/post (str base-api-url "/v1/generation/"engine "/image-to-image/masking")
+                       {:headers {"Authorization" (str "Bearer " api-key)}
+                        :multipart
+                        [{:name "text_prompts[0][text]" :content prompt}
+                         {:name "text_prompts[0][weight]" :content "1"}
+                         {:name "samples" :content (str samples)}
+                         {:name "init_image" :content is}
+                         {:name "mask_image" :content mask-is}
+                         {:name "mask_source" :content "MASK_IMAGE_WHITE"}
+                         {:name "style_preset" :content "anime"}
+                         #_{:name "image_strength" :content (str 0.85)}]}))
+        payload (json/read-str (:body response))
+        response-id (str (random-uuid))
+        urls (into []
+                   (comp (map #(get % "base64"))
+                         (map b64decode)
+                         (map-indexed
+                          (fn [i bytes]
+                            (let [fname (str response-id "-" i ".png")]
+                              (util/save-bytes fname bytes)))))
+                   (get payload "artifacts"))]
+    urls))
+
+
