@@ -92,6 +92,18 @@
                                           "text" (str ":shame: :frogsiren: " msg#)}}]
                                 "replace_original" true})
                         :headers {"Content-type" "application/json"}})))
+      (catch [:error :timeout] m#
+        (client/post response-url#
+                     {:body (json/write-str
+                             {
+                              "response_type" "in_channel",
+                              "blocks"
+                              [{"type" "section"
+                                "text" {"type" "plain_text"
+                                        "emoji" true
+                                        "text" (str ":frogsiren: timeout for \"" (:prompt m#) "\"")}}]
+                              "replace_original" true})
+                      :headers {"Content-type" "application/json"}}))
       (catch :message m#
         (client/post response-url#
                      {:body (json/write-str
