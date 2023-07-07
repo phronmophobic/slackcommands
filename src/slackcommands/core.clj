@@ -760,10 +760,17 @@
   [& args]
 
   ;; initiation protocol
+  ;; 0. did you start with xvfb-run?
   ;; 1. start server
   (def server2 (server/run-server #'my-app {:port 3000}))
-  ;; 2. run com.phronemophobic.discord.viewer/start-browser-server
-  ;; 3. run com.phronemophobic.discord.discord/run-discord-bot!
+  (comment
+    ;; 2. run. did you start with xvfb-run?
+    (com.phronemophobic.discord.viewer/start-browser-server)
+    ;; 3. run
+    (com.phronemophobic.discord.discord/run-discord-bot!)
+    ,)
+  
+  
   )
 
 
