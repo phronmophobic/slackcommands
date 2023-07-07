@@ -250,12 +250,17 @@
                "value" (make-action [:get-image prompt urls (mod (inc index) (count urls))])}]}])})
   )
 
-(defn midjourney-image-response [prompt url]
-  (let [main-blocks [ {"type" "image",
+(defn midjourney-image-response [prompt [top bottom]]
+  (let [main-blocks [{"type" "image",
                        "title" {"type" "plain_text",
                                 "text" prompt},
-                       "image_url" url
-                      "alt_text" prompt}]]
+                       "image_url" top
+                       "alt_text" prompt}
+                     {"type" "image",
+                       "title" {"type" "plain_text",
+                                "text" prompt},
+                       "image_url" bottom
+                       "alt_text" prompt}]]
     {"response_type" "in_channel"
      "blocks" main-blocks}))
 
@@ -459,10 +464,11 @@ See <https://docs.midjourney.com/docs/models> for more options.
              response-url
              (let [response (discord/create-image text)]
                (if-let [url (:url response)]
-                 (client/post response-url
-                              {:body (json/write-str
-                                      (midjourney-image-response text url))
-                               :headers {"Content-type" "application/json"}})
+                 (let [jpg-urls (util/split-large-png url)]
+                   (client/post response-url
+                                {:body (json/write-str
+                                        (midjourney-image-response text jpg-urls))
+                                 :headers {"Content-type" "application/json"}}))
                  (throw (ex-info "Error" response)))))))
         {:body (json/write-str
                 {"response_type" "in_channel"})
