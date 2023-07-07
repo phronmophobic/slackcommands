@@ -150,7 +150,9 @@
         (wrap-exception
          response-url
          (let [messages (conj messages {:role "user" :content text})
-               response (api/create-chat-completion {:model "gpt-3.5-turbo"
+               response (api/create-chat-completion {:model
+                                                     "gpt-4"
+                                                     ;; "gpt-3.5-turbo"
                                                      :messages messages}
                                                     {:api-key api-key})
                message (-> response
