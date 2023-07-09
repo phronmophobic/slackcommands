@@ -26,26 +26,27 @@
   (str "http://" image-host ":" image-port "/aimages/" fname))
 
 (defn split-large-png [url]
-  (let [
-        view (ui/image (io/as-url url))
-        [w h] (ui/bounds view)
-        half-height (int (/ h 2))
-        top (ui/scissor-view [0 0]
-                             [w half-height]
-                             view)
-        bottom (ui/scissor-view [0 0]
-                                [w half-height]
-                                (ui/translate 0 (- half-height)
-                                              view))
-        top-fname (str (random-uuid) ".jpg")
-        bottom-fname (str (random-uuid) ".jpg")]
-    (skia/save-image (.getAbsolutePath
-                      (io/file aimage-dir top-fname))
-                     top)
-    (skia/save-image (.getAbsolutePath
-                      (io/file aimage-dir bottom-fname))
-                     bottom)
-    [(str "http://" image-host ":" image-port "/aimages/" top-fname)
-     (str "http://" image-host ":" image-port "/aimages/" bottom-fname)]))
+  (binding [skia/*image-cache* (atom {})]
+    (let [
+          view (ui/image (io/as-url url))
+          [w h] (ui/bounds view)
+          half-height (int (/ h 2))
+          top (ui/scissor-view [0 0]
+                               [w half-height]
+                               view)
+          bottom (ui/scissor-view [0 0]
+                                  [w half-height]
+                                  (ui/translate 0 (- half-height)
+                                                view))
+          top-fname (str (random-uuid) ".jpg")
+          bottom-fname (str (random-uuid) ".jpg")]
+      (skia/save-image (.getAbsolutePath
+                        (io/file aimage-dir top-fname))
+                       top)
+      (skia/save-image (.getAbsolutePath
+                        (io/file aimage-dir bottom-fname))
+                       bottom)
+      [(str "http://" image-host ":" image-port "/aimages/" top-fname)
+       (str "http://" image-host ":" image-port "/aimages/" bottom-fname)])))
 
 
