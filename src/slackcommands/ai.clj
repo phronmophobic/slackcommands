@@ -437,6 +437,9 @@
 See <https://docs.midjourney.com/docs/models> for more options.
 "))
 
+(defn augment-midjourney-prompt [text]
+  (str/replace text #"—" "--"))
+
 (defn midjourney-image-command [request]
   
   (let [text (get-in request [:form-params "text"])
@@ -457,7 +460,8 @@ See <https://docs.midjourney.com/docs/models> for more options.
           (future
             (wrap-exception
              response-url
-             (let [response (discord/create-image text)]
+             (let [prompt (augment-midjourney-prompt text)
+                   response (discord/create-image prompt)]
                (if-let [url (:url response)]
                  (let [[top bottom] (util/split-large-png url)]
                    (client/post response-url
