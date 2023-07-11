@@ -441,7 +441,6 @@ See <https://docs.midjourney.com/docs/models> for more options.
   (str/replace text #"—" "--"))
 
 (defn midjourney-image-command [request]
-  
   (let [text (get-in request [:form-params "text"])
         response-url (get-in request [:form-params "response_url"])]
 

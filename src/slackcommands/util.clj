@@ -18,12 +18,17 @@
     (io/copy bytes f))
   (str "http://" image-host ":" image-port "/aimages/" fname))
 
-(defn save-image [fname url]
-  (let [f (io/file aimage-dir fname)]
-    (with-open [is (io/input-stream (io/as-url url))]
-      (io/copy is
-               f)))
-  (str "http://" image-host ":" image-port "/aimages/" fname))
+(defn save-image
+  ([url]
+   (save-image (str (random-uuid)) url))
+  ([fname url]
+   (let [f (io/file aimage-dir fname)]
+     (with-open [is (io/input-stream (io/as-url url))]
+       (io/copy is
+                f)))
+   (str "http://" image-host ":" image-port "/aimages/" fname)))
+
+
 
 (defn split-large-png [url]
   (binding [skia/*image-cache* (atom {})]
