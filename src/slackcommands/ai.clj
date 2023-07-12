@@ -250,12 +250,17 @@
                "value" (make-action [:get-image prompt urls (mod (inc index) (count urls))])}]}])})
   )
 
+(defn truncate-from-end [s n]
+  (subs s (max 0 (- (count s)
+                    n))
+        (count s)))
 (defn midjourney-image-response [prompt url section]
-  (let [main-blocks [{"type" "image",
+  (let [title (truncate-from-end prompt 64)
+        main-blocks [{"type" "image",
                       "title" {"type" "plain_text",
-                               "text" (str prompt " ("section ")")},
+                               "text" (str title " ("section ")")},
                       "image_url" url
-                      "alt_text" (str prompt " ("section ")")}]]
+                      "alt_text" (str title " ("section ")")}]]
     {"response_type" "in_channel"
      "blocks" main-blocks}))
 
