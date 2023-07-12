@@ -28,7 +28,14 @@
                 f)))
    (str "http://" image-host ":" image-port "/aimages/" fname)))
 
-
+(defn save-large-png [url]
+  (binding [skia/*image-cache* (atom {})]
+    (let [view (ui/image (io/as-url url))
+          fname (str (random-uuid) ".jpg")]
+      (skia/save-image (.getAbsolutePath
+                        (io/file aimage-dir fname))
+                       view)
+      (str "http://" image-host ":" image-port "/aimages/" fname))))
 
 (defn split-large-png [url]
   (binding [skia/*image-cache* (atom {})]
