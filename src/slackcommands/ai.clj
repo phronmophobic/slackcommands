@@ -444,7 +444,9 @@ See <https://docs.midjourney.com/docs/models> for more options.
 "))
 
 (defn augment-midjourney-prompt [text]
-  (str/replace text #"—" "--"))
+  (-> text
+      (str/replace #"—" "--")
+      (str/replace #"[\n\r]+" " ")))
 
 (defonce resize-image-executor
   (delay
