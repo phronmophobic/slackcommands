@@ -445,6 +445,28 @@ See <https://docs.midjourney.com/docs/models> for more options.
 (defn augment-midjourney-prompt [text]
   (str/replace text #"—" "--"))
 
+(defonce resize-image-executor
+  (delay
+    (let [thread-factory
+          (reify
+            java.util.concurrent.ThreadFactory
+            (newThread [this r]
+              (let [thread (.newThread (Executors/defaultThreadFactory)
+                                       r)]
+                ;; set priority to one less than normal
+                (.setPriority thread
+                              (max Thread/MIN_PRIORITY
+                                   (dec Thread/NORM_PRIORITY)))
+                thread)))]
+      (Executors/newSingleThreadExecutor thread-factory))))
+(defn split-large-png [url]
+  @(.submit
+    ^java.util.concurrent.ExecutorService
+    @resize-image-executor
+    ^java.util.concurrent.Callable
+    (fn []
+      (util/split-large-png url))))
+
 (defn midjourney-image-command [request]
   (let [text (get-in request [:form-params "text"])
         response-url (get-in request [:form-params "response_url"])]
@@ -467,7 +489,7 @@ See <https://docs.midjourney.com/docs/models> for more options.
              (let [prompt (augment-midjourney-prompt text)
                    response (discord/create-image prompt)]
                (if-let [url (:url response)]
-                 (let [[top bottom] (util/split-large-png url)]
+                 (let [[top bottom] (split-large-png url)]
                    (client/post response-url
                                 {:body (json/write-str
                                         (midjourney-image-response text top "top"))
