@@ -455,9 +455,9 @@
                   command
                   (assoc command
                          :character
-                         ["voidwarden"
-                          "redguard"
-                          "quartermaster"
+                         ["demolitionist"
+                          "plagueherald"
+                          "sunkeeper"
                           "summoner"]))]
     command))
 
