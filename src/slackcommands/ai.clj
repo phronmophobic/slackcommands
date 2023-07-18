@@ -255,7 +255,7 @@
                     n))
         (count s)))
 (defn midjourney-image-response [prompt url section]
-  (let [title (truncate-from-end prompt 64)
+  (let [title (truncate-from-end prompt 82)
         main-blocks [{"type" "image",
                       "title" {"type" "plain_text",
                                "text" (str title " ("section ")")},
