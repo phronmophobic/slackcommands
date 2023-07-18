@@ -10,7 +10,8 @@
             [slackcommands.stability :as stability]
             [clojure.zip :as z]
             [clojure.edn :as edn]
-            [com.phronemophobic.discord.api :as discord]))
+            [com.phronemophobic.discord.api :as discord])
+  (:import java.util.concurrent.Executors))
 
 (def ^:dynamic action-data nil)
 (defn -get-action [s]
