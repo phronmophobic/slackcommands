@@ -16,6 +16,10 @@
 
         com.phronemophobic.discord {:local/root "../discord"}
 
+        com.phronemophobic/membrane {;; :mvn/version "0.13.1-beta"
+                                     :git/url "https://github.com/phronmophobic/membrane"
+                                     :git/sha "0539b69e36db6f3cfd7ca6941366032da5e110f5"
+                                     }
         }
  :aliases
  {:project
