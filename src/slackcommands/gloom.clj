@@ -4,6 +4,7 @@
             [clj-http.client :as client]
             [clojure.core.memoize :as memo]
             [clojure.data.json :as json])
+  (:import java.util.regex.Pattern)
   #_(:import com.github.benmanes.caffeine.cache.Caffeine
            java.util.concurrent.TimeUnit))
 
@@ -118,6 +119,69 @@
                }]))})
   )
 
+(defn list-items-response [items]
+  (let [header {"type" "section"
+                "text" {"type" "mrkdwn",
+                        "text" "all items"}
+                "accessory" {"type" "button"
+                             "text" {"type" "plain_text"
+                                     "text" "delete"}
+                             "value" (make-action [:delete-message])}}
+        main-blocks (for [[i item] (map-indexed vector items)]
+                      {"type" "section"
+                       "text" {"type" "mrkdwn",
+                               "text" (:name item)}
+                       "accessory" {"type" "button"
+                                    "text" {"type" "plain_text"
+                                            "text" "view"}
+                                    "value" (make-action [:getitem items i])}
+                       })]
+    {"response_type" "in_channel"
+     "blocks" (into [header]
+                    main-blocks)}))
+
+(defn item-response [items index]
+  (let [item (nth items index)
+        main-blocks [{"type" "section",
+                      "text" {"type" "mrkdwn",
+                              "text"
+                              (str (inc index) " of " (count items) " matches.")}
+                      "accessory" {"type" "button"
+                                   "text" {"type" "plain_text"
+                                           "text" "delete"}
+                                   "value" (make-action [:delete-message])}}
+
+                     {"type" "divider"}
+                     {"type" "image",
+                      "title" {"type" "plain_text",
+                               "text" (:name item)},
+                      "image_url" (image-url item)
+                      "alt_text" (:name item)}]]
+    {"response_type" "in_channel"
+     "blocks"
+     (into main-blocks
+           (when (> (count items) 1)
+             [{"type" "divider"}
+              {"type" "actions",
+               "elements"
+               (into []
+                     (concat
+                      (for [i (range (max 0 (dec index))
+                                     (min (count items)
+                                          (+ index 5)))
+                            :when (not= i index)
+                            :let [item (nth items i)]]
+                        {"type" "button",
+                         "text"
+                         {"type" "plain_text", "text" (:name item)}
+                         "value" (make-action [:getitem items i])})
+                      [{"type" "button",
+                        "text"
+                        {"type" "plain_text", "text" "..."}
+                        "value" (make-action [:list-items items])}]))
+               }]))})
+  )
+
 (defn gh-command-interact [request]
   (let [payload (json/read-str (get (:form-params request) "payload"))
         url (get payload "response_url")
@@ -172,7 +236,40 @@
               (prn e))))
         {:body "ok"
          :headers {"Content-type" "application/json"}
-         :status 200}))))
+         :status 200})
+
+      :list-items
+      (let [[_ items] event]
+            (future
+              (try
+                (client/post url
+                             {:body (json/write-str
+                                     (assoc (list-items-response items)
+                                            "replace_original" true))
+                              :headers {"Content-type" "application/json"}})
+                (catch Exception e
+                  (prn e))))
+            {:body "ok"
+             :headers {"Content-type" "application/json"}
+             :status 200})
+
+      :getitem
+      (let [[_ items index] event]
+        (future
+          (try
+            (client/post url
+                         {:body (json/write-str
+                                 (assoc (item-response items
+                                                       index)
+                                        "replace_original" true))
+                          :headers {"Content-type" "application/json"}})
+            (catch Exception e
+              (prn e))))
+        {:body "ok"
+         :headers {"Content-type" "application/json"}
+         :status 200})
+
+      )))
 
 ;; LoadingCache<Key, Graph> graphs = Caffeine.newBuilder()
 ;;     .weakKeys()
@@ -573,6 +670,28 @@
            cards)))
   )
 
+(def items (data "items.js"))
+
+(defn fuzzy-regex [s]
+  (Pattern/compile
+   (str
+    ".*"
+    (apply str
+           (->> (str/lower-case s)
+                (remove #{\space})
+                (map (fn [c]
+                       (str "[" c "]")))
+                (interpose ".*")))
+    ".*")))
+
+(defn find-items [s]
+  (let [reg (fuzzy-regex s)
+        matches (->> items
+                     (filter #(re-find reg (:name %)))
+                     (remove #(str/ends-with? (:image %) "-back.png"))
+                     (sort-by :points >)
+                     )]
+    matches))
 
 (defn help-text []
   (let []
@@ -584,6 +703,10 @@
 *character*: " (clojure.string/join ", " character?) "
 *expansion*: " (clojure.string/join ", " (keys expansion?)) "
 *text*: \"shield spikes\"
+
+or for items:
+
+/gh item <fuzzy item name>
 
 "))
   )
@@ -599,6 +722,18 @@
                                   "text" (help-text)}}]}) 
        :headers {"Content-type" "application/json"}
        :status 200}
+
+      (or (str/starts-with? text "items ")
+          (str/starts-with? text "item "))
+      (let [query-str (second (str/split text #" " 2))]
+        (let [items (find-items query-str)]
+          {:body (if (seq items)
+                   (json/write-str
+                    (item-response items 0))
+                   "No cards found.")
+           :headers {"Content-type" "application/json"}
+           :status 200}
+          ))
 
       :else
       (let [cards (query-cards cards text)]
