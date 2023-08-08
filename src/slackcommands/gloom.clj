@@ -555,7 +555,7 @@
                          ["demolitionist"
                           "plagueherald"
                           "sunkeeper"
-                          "summoner"]))]
+                          "berserker"]))]
     command))
 
 (defn parse-query [s]
