@@ -130,7 +130,7 @@
         main-blocks (for [[i item] (map-indexed vector items)]
                       {"type" "section"
                        "text" {"type" "mrkdwn",
-                               "text" (:name item)}
+                               "text" (str (:name item) " (" (:expansion item) ")")}
                        "accessory" {"type" "button"
                                     "text" {"type" "plain_text"
                                             "text" "view"}
@@ -154,9 +154,9 @@
                      {"type" "divider"}
                      {"type" "image",
                       "title" {"type" "plain_text",
-                               "text" (:name item)},
+                               "text" (str (:name item) " (" (:expansion item) ")")},
                       "image_url" (image-url item)
-                      "alt_text" (:name item)}]]
+                      "alt_text" (str (:name item) " (" (:expansion item) ")")}]]
     {"response_type" "in_channel"
      "blocks"
      (into main-blocks
