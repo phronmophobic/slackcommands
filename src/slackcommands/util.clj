@@ -1,8 +1,24 @@
 (ns slackcommands.util
   (:require [clojure.java.io :as io]
             [membrane.skia :as skia]
+            [amazonica.core :as amazonica]
+            [amazonica.aws.s3 :as s3]
             [membrane.ui :as ui]))
 
+(def s3-creds
+  {:profile "aimages"
+   :endpoint "us-west-1"})
+
+(amazonica/defcredential s3-creds)
+(def bucket "aimages-smith-rocks")
+
+(defn upload-file
+  ([fname]
+   (let [f (io/file fname)
+         key (.getName f)]
+     (s3/put-object bucket
+                    key
+                    f))))
 
 (def aimage-dir
   (doto (io/file "aimages")
