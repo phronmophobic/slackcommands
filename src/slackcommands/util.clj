@@ -67,14 +67,19 @@
                                   (ui/translate 0 (- half-height)
                                                 view))
           top-fname (str (random-uuid) ".jpg")
-          bottom-fname (str (random-uuid) ".jpg")]
+          bottom-fname (str (random-uuid) ".jpg")
+
+          top-file (io/file aimage-dir top-fname)
+          bottom-file (io/file aimage-dir bottom-fname)]
       (skia/save-image (.getAbsolutePath
-                        (io/file aimage-dir top-fname))
+                        top-file)
                        top)
       (skia/save-image (.getAbsolutePath
-                        (io/file aimage-dir bottom-fname))
+                        bottom-file)
                        bottom)
-      [(str "http://" image-host ":" image-port "/aimages/" top-fname)
-       (str "http://" image-host ":" image-port "/aimages/" bottom-fname)])))
+      (upload-file top-file)
+      (upload-file bottom-file)
+      [(str "https://" "aimages.smith.rocks/" top-fname)
+       (str "https://" "aimages.smith.rocks/" bottom-fname)])))
 
 
