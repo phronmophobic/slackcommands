@@ -1,6 +1,7 @@
 (ns slackcommands.gloom
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clj-http.client :as client]
             [clojure.core.memoize :as memo]
             [clojure.data.json :as json])
@@ -547,15 +548,19 @@
                   command
                   (assoc command
                          :expansion ["Gloomhaven"
+                                     "Frosthaven"
                                      "Jaws Of The Lion"]))
+        party ["drifter"
+               "blinkblade"
+               "deathwalker"]
         command (if (:character command)
                   command
                   (assoc command
-                         :character
-                         ["demolitionist"
-                          "plagueherald"
-                          "sunkeeper"
-                          "berserker"]))]
+                         :character party))
+        command (if (:level command)
+                  command
+                  (assoc command
+                         :level 1))]
     command))
 
 (defn parse-query [s]
@@ -656,18 +661,19 @@
 
 
 
-(defn query-cards [cards q]
-  (let [command (->> (parse-query q)
-                     
-                     )
-        xform (comp
-               (remove #(#{"-" "A" "B" "M" "P" "V"}
-                         (:level %)))
-               (command->xform command))]
-    (standard-sort
-     (into []
-           xform
-           cards)))
+(defn query-cards
+  ([q]
+   (query-cards cards q))
+  ([cards q]
+   (let [command (->> (parse-query q))
+         xform (comp
+                (remove #(#{"-" "A" "B" "M" "P" "V"}
+                          (:level %)))
+                (command->xform command))]
+     (standard-sort
+      (into []
+            xform
+            cards))))
   )
 
 (def items (data "items.js"))
@@ -687,6 +693,7 @@
 (defn find-items [s]
   (let [reg (fuzzy-regex s)
         matches (->> items
+                     (filter #(= "Frosthaven" (:expansion %)))
                      (filter #(re-find reg (:name %)))
                      (remove #(str/ends-with? (:image %) "-back.png"))
                      (sort-by :points >)
