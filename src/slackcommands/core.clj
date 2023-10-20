@@ -694,7 +694,7 @@
                  "blocks" [{"type" "section"
                             "text" {"type" "plain_text"
                                     "emoji" true
-                                    "text" ":this-is-fine-party: :this-is-fine-fire: :thisisfine: :this-is-fine-but-with-ai: :this-is-fine-but-with-wind: :this-is-fine-but-with-flooding: :this-is-fine-but-with-lightning: :this-is-fine-but-with-earthquakes: :this-is-fine-but-with-bankruptcy: :meow-this-is-fine:"}}]})
+                                    "text" ":this-is-fine-party: :this-is-fine-fire: :thisisfine: :this-is-fine-but-with-ai: :this-is-fine-but-with-wind: :this-is-fine-but-with-flooding: :this-is-fine-but-with-lightning: :this-is-fine-but-with-earthquakes: :this-is-fine-but-with-bankruptcy: :this-is-fine-but-with-al: :meow-this-is-fine:"}}]})
          :headers {"Content-type" "application/json"}
          :status 200})
 
