@@ -1,4 +1,4 @@
-(ns com.phronemophobic.ttsim
+(ns slackcommands.gloom.ttsim
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.set :as set]
@@ -7,14 +7,19 @@
 
 
 ;; /Users/adrian/Library/Tabletop Simulator/Saves
-(def save-root-path  "/Users/adrian/workspace/ttsim/")
-(def savename "TS_Save_6.json")
+
+
 
 ;; https://github.com/any2cards/worldhaven/blob/bacda1f42cca7d723e2d58bcf05112af01c6a13d/data/outpost-building-cards.js#L3
 (defn get-buildings [])
 
-(def game-file (io/file save-root-path savename))
-(def game (json/read-str (slurp game-file) ))
+(defn default-game []
+  (let [rdr (io/reader "ttsim.json")]
+    (json/read rdr)))
+
+;; (def game-file (io/file save-root-path savename))
+;; (def game (json/read-str (slurp game-file) ))
+
 
 (defn find-by-tags [game tags]
   (let [tags (set tags)]
@@ -43,11 +48,20 @@
                            (let [k (str "level" i)]
                              (when (seq (get state k))
                                i))))
-                   last)]
+                   last)
+
+        name (-> script-state
+                 (get "inputs")
+                 (get "Name"))
+        name (if (seq name)
+               name
+               (let [nn (get sheet "Nickname")]
+                 (subs nn (count "CharacterSheet_"))))]
     {;; :sheet sheet
      :xp (parse-long (get state "xp"))
      :gold (parse-long (get state "gold"))
      :level level
+     :name name
      :resources
      (into {}
            (map (fn [k]

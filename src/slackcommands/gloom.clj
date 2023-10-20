@@ -4,6 +4,7 @@
             [clojure.set :as set]
             [clj-http.client :as client]
             [clojure.core.memoize :as memo]
+            [slackcommands.gloom.ttsim :as ttsim]
             [clojure.data.json :as json])
   (:import java.util.regex.Pattern)
   #_(:import com.github.benmanes.caffeine.cache.Caffeine
@@ -182,6 +183,83 @@
                         "value" (make-action [:list-items items])}]))
                }]))})
   )
+
+(defn resources->md [resources]
+  (str/join
+   "\n"
+   (eduction
+    (map (fn [resource]
+           [(str " " resource ": ") (get resources resource)]))
+    (map str/join)
+    ttsim/resource-names)))
+
+(defn player->md [p]
+  (clojure.string/join
+   "\n"
+   (eduction
+    (map str/join)
+    [["*" (:name p) "*"]
+     ["level: " (:level p)]
+     ["xp: " (:xp p)]
+     ["gold: " (:gold p)]
+     [(resources->md (:resources p))]])))
+
+(defn campaign->md [c]
+  (clojure.string/join
+   "\n"
+   (eduction
+    (map str/join)
+    (into ["*Frosthaven*"]
+          (map (fn [k]
+                 (case k
+                   :resources (resources->md (:resources c))
+
+                   ;; else
+                   [(str (name k) ": " (get c k))])))
+          [:prosperity
+           :defense
+           :inspiration
+           :morale
+           :resources]))))
+
+
+
+(comment
+  (println (player->md
+            (first (ttsim/get-player-mats (ttsim/default-game)))))
+
+  (println (campaign->md
+            (ttsim/campaign-sheet (ttsim/default-game))))
+  ,)
+
+(defn stats->md []
+  (let [game (ttsim/default-game)
+        campaign (ttsim/campaign-sheet game)
+        players (ttsim/get-player-mats game)
+        ]
+    (str
+     (str/join
+      (eduction
+       (map player->md)
+       (map #(str % "\n\n"))
+       players))
+
+     (campaign->md campaign)
+
+     "\n\n"
+
+     "*Total Resources*\n"
+     (resources->md
+      (reduce #(merge-with + %1 %2)
+              (:resouces campaign)
+              (map :resources players))))))
+
+(defn stats-response []
+  (let [blocks [{"type" "section",
+                 "text" {"type" "mrkdwn",
+                         "text" (stats->md)}}]]
+    {"response_type" "in_channel"
+     "blocks" blocks}))
 
 (defn gh-command-interact [request]
   (let [payload (json/read-str (get (:form-params request) "payload"))
@@ -741,6 +819,19 @@ or for items:
            :headers {"Content-type" "application/json"}
            :status 200}
           ))
+
+      (#{"stat" "stats"} text)
+      (do
+        (future
+          (let [response-url (get-in request [:form-params "response_url"])]
+            (client/post response-url
+                         {:body (json/write-str
+                                 (stats-response))
+                          :headers {"Content-type" "application/json"}})))
+       {:body (json/write-str
+               {"response_type" "in_channel"})
+        :headers {"Content-type" "application/json"}
+        :status 200})
 
       :else
       (let [cards (query-cards cards text)]
