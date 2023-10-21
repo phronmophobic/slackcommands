@@ -132,7 +132,7 @@
         main-blocks (for [[i item] (map-indexed vector items)]
                       {"type" "section"
                        "text" {"type" "mrkdwn",
-                               "text" (str (:name item) " (" (:expansion item) ")")}
+                               "text" (str (:xws item) " (" (:expansion item) ")")}
                        "accessory" {"type" "button"
                                     "text" {"type" "plain_text"
                                             "text" "view"}
@@ -156,9 +156,9 @@
                      {"type" "divider"}
                      {"type" "image",
                       "title" {"type" "plain_text",
-                               "text" (str (:name item) " (" (:expansion item) ")")},
+                               "text" (str (:xws item) " (" (:expansion item) ")")},
                       "image_url" (image-url item)
-                      "alt_text" (str (:name item) " (" (:expansion item) ")")}]]
+                      "alt_text" (str (:xws item) " (" (:expansion item) ")")}]]
     {"response_type" "in_channel"
      "blocks"
      (into main-blocks
@@ -175,7 +175,7 @@
                             :let [item (nth items i)]]
                         {"type" "button",
                          "text"
-                         {"type" "plain_text", "text" (:name item)}
+                         {"type" "plain_text", "text" (:xws item)}
                          "value" (make-action [:getitem items i])})
                       [{"type" "button",
                         "text"
@@ -825,7 +825,7 @@
       ;; else
       (let [reg (fuzzy-regex s)
             matches (->> available-items
-                         (filter #(re-find reg (:xws %))))]
+                         (filter #(str/includes? (:xws %) s)))]
         matches))))
 
 (defn help-text []
@@ -858,17 +858,25 @@ or for items:
        :headers {"Content-type" "application/json"}
        :status 200}
 
-      (or (str/starts-with? text "items ")
-          (str/starts-with? text "item "))
-      (let [query-str (second (str/split text #" " 2))]
-        (let [items (find-items query-str)]
-          {:body (if (seq items)
-                   (json/write-str
-                    (item-response items 0))
-                   "No cards found.")
-           :headers {"Content-type" "application/json"}
-           :status 200}
-          ))
+      (or (str/starts-with? text "items")
+          (str/starts-with? text "item"))
+      (do
+        (future
+          (let [query-str (or (second (str/split text #" " 2))
+                              "")
+                _ (prn "items" query-str)
+                items (find-items query-str)
+                response-url (get-in request [:form-params "response_url"])]
+            (client/post response-url
+                         {:body (if (seq items)
+                                  (json/write-str
+                                   (item-response items 0))
+                                  "No cards found.")
+                          :headers {"Content-type" "application/json"}})))
+        {:body (json/write-str
+                {"response_type" "in_channel"})
+         :headers {"Content-type" "application/json"}
+         :status 200})
 
       (#{"stat" "stats"} text)
       (do
