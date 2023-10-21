@@ -14,8 +14,17 @@
 (defn get-buildings [])
 
 (defn default-game []
-  (let [rdr (io/reader "ttsim.json")]
+  (let [rdr (io/reader
+             #_(io/file "/Users/adrian/Library/Tabletop Simulator/Saves/"
+                      "TS_Save_42.json")
+             "ttsim.json")]
     (json/read rdr)))
+
+;; layout zones
+;; (= "LayoutZone" (get % "Name"))
+;; have access to tags
+;; items are put into groups:
+;; (-> % (get "LayoutZone") (get "GroupsInZone"))
 
 ;; (def game-file (io/file save-root-path savename))
 ;; (def game (json/read-str (slurp game-file) ))
@@ -111,6 +120,7 @@
   
   (do
     (require '[zippo.core :as zippo])
+    (require '[clojure.zip :as z])
     
 
     (defn clj-zip [obj]
@@ -134,3 +144,59 @@
 
   (ss/save-ss "ttsim.edn")
   ,)
+
+(defn find-deck-for-snap [game mat snap]
+  (let [mat-pos (get mat "Transform")
+        spos (get snap "Position")
+        coord {:x (+ (get mat-pos "posX")
+                     (* (get spos "x")
+                        (get mat-pos "scaleX")))
+               :y (+ (get mat-pos "posY")
+                     (* (get spos "y")
+                        (get mat-pos "scaleY")))
+               :z (+ (get mat-pos "posZ")
+                     (* (get spos "z")
+                        (get mat-pos "scaleZ")))}
+        key-fn (fn [o]
+                  (let [{x "posX"
+                         y "posY"
+                         z "posZ"
+                         sx "scaleX"
+                         sy "scaleT"} (get o "Transform")]
+                    (if (and x y z)
+                      (+ (Math/pow (- x (:x coord)) 2)
+                         (Math/pow (- y (:y coord)) 2)
+                         ;;(Math/pow (- z (:z coord)) 2)
+                         )
+                      Double/MAX_VALUE)))
+        closest (apply min-key key-fn (get game "ObjectStates"))
+        sanity? (and (= "Deck" (get closest "Name")))]
+    (when sanity?
+      closest
+      (->> (get closest "ContainedObjects")
+           (map #(get % "Nickname"))
+           (into #{})))))
+
+(defn get-items [game]
+  (let [states (get game "ObjectStates")
+        items-mat (->> states
+                       (filter #(= "Items Mat"
+                                   (get % "Nickname")))
+                       first)
+        snaps (get items-mat "AttachedSnapPoints")
+        purchasable-snap (->> snaps
+                              (filter #(set/subset?
+                                        #{"item" "deck" "purchasable"}
+                                        (set (get % "Tags"))))
+                              first)
+        craftable-snap (->> snaps
+                            (filter #(set/subset?
+                                      #{"item" "deck" "craftable"}
+                                      (set (get % "Tags"))))
+                            first)]
+    {:craftable (find-deck-for-snap game
+                                    items-mat
+                                    craftable-snap)
+     :purchasable (find-deck-for-snap game
+                                      items-mat
+                                      purchasable-snap)}))

@@ -768,15 +768,65 @@
                 (interpose ".*")))
     ".*")))
 
+(defn distinct-by
+  "Returns a lazy sequence of the elements of coll with duplicates removed.
+  Returns a stateful transducer when no collection is provided."
+  ([keyfn]
+   (fn [rf]
+     (let [seen (volatile! #{})]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result input]
+          (let [k (keyfn input)]
+            (if (contains? @seen k)
+              result
+              (do (vswap! seen conj k)
+                  (rf result input))))))))))
+
+
 (defn find-items [s]
-  (let [reg (fuzzy-regex s)
-        matches (->> items
-                     (filter #(= "Frosthaven" (:expansion %)))
-                     (filter #(re-find reg (:name %)))
-                     (remove #(str/ends-with? (:image %) "-back.png"))
-                     (sort-by :points >)
-                     )]
-    matches))
+  (let [{:keys [craftable purchasable]} (ttsim/get-items (ttsim/default-game))
+
+        available-ids (set/union craftable
+                                 purchasable)
+        available-items
+        (->> items
+             (map (fn [card]
+                    (let [num (re-find #"[0-9]{3}$" (:name card))
+                          id (case (:expansion card)
+                               "Gloomhaven"
+                               (str "GH-" num)
+
+                               "Frosthaven"
+                               num
+
+                               nil)]
+                      (assoc card :id id))))
+             (filter #(contains? available-ids (:id %)))
+             (map (fn [m]
+                    (merge m
+                           {:purchasable (contains? purchasable
+                                                    (:id m))
+                            :craftable (contains? craftable
+                                                  (:id m))})))
+             (remove #(str/ends-with? (:image %) "-back.png"))
+             (into [] (distinct-by :xws))
+             (sort-by :points >))]
+    (case s
+      "craftable"
+      (->> available-items
+           (filter :craftable))
+
+      "purchasable"
+      (->> available-items
+           (filter :purchasable))
+
+      ;; else
+      (let [reg (fuzzy-regex s)
+            matches (->> available-items
+                         (filter #(re-find reg (:xws %))))]
+        matches))))
 
 (defn help-text []
   (let []
