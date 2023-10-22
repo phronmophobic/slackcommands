@@ -839,9 +839,15 @@
 *expansion*: " (clojure.string/join ", " (keys expansion?)) "
 *text*: \"shield spikes\"
 
+or stats:
+
+`/gh stats`
+
 or for items:
 
-/gh item <fuzzy item name>
+`/gh item [query]`
+`/gh item craftable`
+`/gh item purchasable`
 
 "))
   )
@@ -849,7 +855,9 @@ or for items:
 (defn gloom-command [request]
   (let [text (get-in request [:form-params "text"])]
     (cond
-      (= text "help")
+
+      (or (= text "help")
+          (empty? text))
       {:body (json/write-str
               {"response_type" "ephemeral"
                "blocks" [{"type" "section"
