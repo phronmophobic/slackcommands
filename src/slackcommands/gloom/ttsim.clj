@@ -154,19 +154,30 @@
   (ss/save-ss "ttsim.edn")
   ,)
 
-(defn find-deck-for-snap [game mat snap]
-  (let [mat-pos (get mat "Transform")
-        spos (get snap "Position")
-        coord {:x (+ (get mat-pos "posX")
-                     (* (get spos "x")
-                        (get mat-pos "scaleX")))
-               :y (+ (get mat-pos "posY")
-                     (* (get spos "y")
-                        (get mat-pos "scaleY")))
-               :z (+ (get mat-pos "posZ")
-                     (* (get spos "z")
-                        (get mat-pos "scaleZ")))}
-        key-fn (fn [o]
+(defn find-deck-for-snap
+  ([game snap]
+   (find-deck-for-snap
+    game
+    {"Transform" {"posX" 0
+                  "posY" 0
+                  "posZ" 0
+                  "scaleX" 1
+                  "scaleY" 1
+                  "scaleZ" 1}}
+    snap))
+  ([game mat snap]
+   (let [mat-pos (get mat "Transform")
+         spos (get snap "Position")
+         coord {:x (+ (get mat-pos "posX")
+                      (* (get spos "x")
+                         (get mat-pos "scaleX")))
+                :y (+ (get mat-pos "posY")
+                      (* (get spos "y")
+                         (get mat-pos "scaleY")))
+                :z (+ (get mat-pos "posZ")
+                      (* (get spos "z")
+                         (get mat-pos "scaleZ")))}
+         key-fn (fn [o]
                   (let [{x "posX"
                          y "posY"
                          z "posZ"
@@ -178,13 +189,21 @@
                          ;;(Math/pow (- z (:z coord)) 2)
                          )
                       Double/MAX_VALUE)))
-        closest (apply min-key key-fn (get game "ObjectStates"))
-        sanity? (and (= "Deck" (get closest "Name")))]
-    (when sanity?
-      closest
-      (->> (get closest "ContainedObjects")
-           (map #(get % "Nickname"))
-           (into #{})))))
+         closest (apply min-key key-fn (get game "ObjectStates"))
+         sanity? (and (= "Deck" (get closest "Name")))]
+     (when sanity?
+       closest
+       (->> (get closest "ContainedObjects")
+            (map #(get % "Nickname"))
+            (into #{}))))))
+
+(defn buildings [game]
+  (let [snaps (get game "SnapPoints")
+        snap (->> snaps
+                  (filter #(set/subset? #{"foobar"}
+                                        (set (get % "Tags"))))
+                  first)]
+    (find-deck-for-snap game snap)))
 
 (defn get-items [game]
   (let [states (get game "ObjectStates")
