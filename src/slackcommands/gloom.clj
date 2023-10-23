@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clj-http.client :as client]
+            [clojure.pprint :as pp]
             [clojure.core.memoize :as memo]
             [slackcommands.gloom.ttsim :as ttsim]
             [clojure.data.json :as json])
@@ -184,75 +185,66 @@
                }]))})
   )
 
-(defn resources->md [resources]
-  (str/join
-   "\n"
-   (eduction
-    (map (fn [resource]
-           [(str " " resource ": ") (get resources resource)]))
-    (map str/join)
-    ttsim/resource-names)))
-
-(defn player->md [p]
-  (clojure.string/join
-   "\n"
-   (eduction
-    (map str/join)
-    [["*" (:name p) "*"]
-     ["level: " (:level p)]
-     ["xp: " (:xp p)]
-     ["gold: " (:gold p)]
-     [(resources->md (:resources p))]])))
-
 (defn campaign->md [c]
-  (clojure.string/join
-   "\n"
-   (eduction
-    (map str/join)
-    (into ["*Frosthaven*"]
-          (map (fn [k]
-                 (case k
-                   :resources (resources->md (:resources c))
-
-                   ;; else
-                   [(str (name k) ": " (get c k))])))
-          [:prosperity
-           :defense
-           :inspiration
-           :morale
-           :resources]))))
+  (with-out-str
+    (pp/print-table
+     [:name
+      :prosperity
+      :defense
+      :inspiration
+      :morale]
+     [(assoc c :name "Frosthaven")])))
 
 
 
-(comment
-  (println (player->md
-            (first (ttsim/get-player-mats (ttsim/default-game)))))
-
-  (println (campaign->md
-            (ttsim/campaign-sheet (ttsim/default-game))))
-  ,)
 
 (defn stats->md []
   (let [game (ttsim/default-game)
         campaign (ttsim/campaign-sheet game)
-        players (ttsim/get-player-mats game)
-        ]
+        players (ttsim/get-player-mats game)]
     (str
-     (str/join
-      (eduction
-       (map player->md)
-       (map #(str % "\n\n"))
-       players))
+     "```\n"
+     (with-out-str
+       (clojure.pprint/print-table
+        [:name :level :xp :gold]
+        players))
+
+     (let [xs (concat
+               (eduction
+                (map (fn [{:keys [name resources]}]
+                       (assoc resources :name name)))
+                players)
+               [(assoc (:resources campaign)
+                       :name "FrostHaven")
+                (assoc (reduce #(merge-with + %1 %2)
+                               (:resources campaign)
+                               (map :resources players))
+                       :name "Total")])
+           n 5]
+       (clojure.string/join
+        (eduction
+         (partition-all n)
+         (map (fn [ks]
+                (with-out-str
+                  (pp/print-table
+                   (into [:name] ks)
+                   xs))))
+         ttsim/resource-names)))
 
      (campaign->md campaign)
+     "\n```")))
 
-     "\n\n"
+(comment
+  (println
+   (clojure.pprint/print-table
+    [:name :level :xp :gold]
+    (ttsim/get-player-mats (ttsim/default-game))))
 
-     "*Total Resources*\n"
-     (resources->md
-      (reduce #(merge-with + %1 %2)
-              (:resouces campaign)
-              (map :resources players))))))
+  (println (stats->md))
+  
+  (println (campaign->md
+            (ttsim/campaign-sheet (ttsim/default-game))))
+  ,)
 
 (defn stats-response []
   (let [blocks [{"type" "section",
