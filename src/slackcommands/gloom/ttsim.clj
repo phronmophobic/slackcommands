@@ -13,11 +13,20 @@
 ;; https://github.com/any2cards/worldhaven/blob/bacda1f42cca7d723e2d58bcf05112af01c6a13d/data/outpost-building-cards.js#L3
 (defn get-buildings [])
 
+(defn latest-save-file []
+  (->> (io/file "/Users/adrian/Library/Tabletop Simulator/Saves/")
+     .listFiles
+     (filter #(str/ends-with? (.getName %) ".json"))
+     (filter #(str/starts-with? (.getName %) "TS_"))
+     (apply max-key #(.lastModified %))))
+
+(defn latest-game []
+  (with-open [rdr (io/reader (latest-save-file))]
+    (json/read rdr)))
+
+
 (defn default-game []
-  (let [rdr (io/reader
-             #_(io/file "/Users/adrian/Library/Tabletop Simulator/Saves/"
-                      "TS_Save_42.json")
-             "ttsim.json")]
+  (with-open [rdr (io/reader "ttsim.json")]
     (json/read rdr)))
 
 ;; layout zones
