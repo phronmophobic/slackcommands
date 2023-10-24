@@ -622,7 +622,7 @@
                                      "Frosthaven"
                                      "Jaws Of The Lion"]))
         party ["drifter"
-               "blinkblade"
+               "trapper"
                "deathwalker"]
         command (if (:character command)
                   command
