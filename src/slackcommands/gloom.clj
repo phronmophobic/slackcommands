@@ -882,6 +882,10 @@ or for items:
 `/gh item craftable`
 `/gh item purchasable`
 
+or for buildings:
+`/gh buildings` for current buildings
+`/gh buildings next` for next level buildings.
+
 "))
   )
 
@@ -904,7 +908,7 @@ or for items:
         (future
           (try
             (let [kind (case text
-                         ("building" "buildings")
+                         ("building" "buildings" "building current" "buildings current")
                          :current
 
                          :next)
