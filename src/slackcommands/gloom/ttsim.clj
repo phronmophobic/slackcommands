@@ -11,7 +11,6 @@
 
 
 ;; https://github.com/any2cards/worldhaven/blob/bacda1f42cca7d723e2d58bcf05112af01c6a13d/data/outpost-building-cards.js#L3
-(defn get-buildings [])
 
 (defn latest-save-file []
   (->> (io/file "/Users/adrian/Library/Tabletop Simulator/Saves/")
@@ -212,13 +211,31 @@
             (map #(get % "Nickname"))
             (into #{}))))))
 
-(defn buildings [game]
-  (let [snaps (get game "SnapPoints")
+(defn get-buildings [game]
+  (let [mat (->> (get game "ObjectStates")
+                 (filter #(= "Outpost"
+                             (get % "Nickname")))
+                 first)
+        snaps (get game "SnapPoints")
+        snaps (get mat "AttachedSnapPoints")
         snap (->> snaps
-                  (filter #(set/subset? #{"foobar"}
+                  (filter #(set/subset? #{"deck" "building"}
                                         (set (get % "Tags"))))
-                  first)]
-    (find-deck-for-snap game snap)))
+                  first)
+        all-ids (find-deck-for-snap game mat snap)
+        by-id (group-by (fn [s]
+                          (str/trim (second (str/split s #"-"))))
+                        all-ids)
+        ids (into []
+                  (map (fn [[id xs]]
+                         (apply
+                          min-key
+                          (fn [s]
+                            (let [lvl (re-find #"[0-9]+$" s)]
+                              (parse-long lvl)))
+                          xs)))
+                  by-id)]
+    ids))
 
 (defn get-items [game]
   (let [states (get game "ObjectStates")

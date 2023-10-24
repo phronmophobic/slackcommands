@@ -83,3 +83,18 @@
        (str "https://" "aimages.smith.rocks/" bottom-fname)])))
 
 
+(defn building-image [urls]
+  (binding [skia/*image-cache* (atom {})]
+    (let [f (io/file aimage-dir (str "buildings-"
+                                     (hash (set urls))
+                                     ".jpg"))
+          _ (when (not (.exists f))
+              (let [imgs (into []
+                               (map #(ui/image (io/as-url %)))
+                               (sort urls))
+                    layout (ui/table-layout
+                            (partition-all 4 imgs))]
+                (skia/save-image (.getCanonicalPath f)
+                                 layout)
+                (upload-file f)))]
+      (str "https://" "aimages.smith.rocks/" (.getName f)))))

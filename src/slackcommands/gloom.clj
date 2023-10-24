@@ -6,6 +6,7 @@
             [clojure.pprint :as pp]
             [clojure.core.memoize :as memo]
             [slackcommands.gloom.ttsim :as ttsim]
+            [slackcommands.util :as util]
             [clojure.data.json :as json])
   (:import java.util.regex.Pattern)
   #_(:import com.github.benmanes.caffeine.cache.Caffeine
@@ -747,6 +748,43 @@
   )
 
 (def items (data "items.js"))
+(def buildings (data "outpost-building-cards.js"))
+(def buildings-by-xws
+  (into {}
+        (map (fn [[xws cards]]
+               [xws
+                (->> cards
+                     (remove #(str/ends-with?(:image %)
+                                            "-back.png"))
+                     (apply
+                      max-key
+                      :points))]))
+        (group-by :xws buildings)))
+(defn ->building [ttsim-id]
+  (let [[_ bid name lvl] (re-matches #"([0-9]+)\s*-\s*([a-zA-Z 0-9]+)\s*-[^0-9]*([0-9]+)" ttsim-id)
+        xws (str bid
+                 (-> name
+                     str/lower-case
+                     (str/replace #"\s" ""))
+                 "level"
+                 lvl)
+        ]
+    (buildings-by-xws xws)))
+
+(defn building-response []
+  (let [buildings
+        (map ->building
+             (ttsim/get-buildings(ttsim/default-game)))
+        url (util/building-image
+             (map image-url buildings))
+        blocks [{"type" "image",
+                 "title" {"type" "plain_text",
+                          "text" "Buildings"},
+                 "image_url" url
+                 "alt_text" "Buildings"}]]
+    {"response_type" "in_channel"
+     "blocks" blocks}))
+
 
 (defn fuzzy-regex [s]
   (Pattern/compile
@@ -857,6 +895,19 @@ or for items:
                                   "text" (help-text)}}]}) 
        :headers {"Content-type" "application/json"}
        :status 200}
+
+      (#{"buildings"
+         "building"})
+      (do
+        (future
+          (let [response-url (get-in request [:form-params "response_url"])]
+            (client/post response-url
+                         {:body (building-response)
+                          :headers {"Content-type" "application/json"}})))
+        {:body (json/write-str
+                {"response_type" "in_channel"})
+         :headers {"Content-type" "application/json"}
+         :status 200})
 
       (or (str/starts-with? text "items")
           (str/starts-with? text "item"))
