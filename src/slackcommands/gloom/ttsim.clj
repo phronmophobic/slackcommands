@@ -168,6 +168,42 @@
   (ss/save-ss "ttsim.edn")
   ,)
 
+(defn distance
+  ([snap o]
+   (distance game
+             {"Transform" {"posX" 0
+                           "posY" 0
+                           "posZ" 0
+                           "scaleX" 1
+                           "scaleY" 1
+                           "scaleZ" 1}}
+             snap))
+  ([mat snap o]
+   (let [mat-pos (get mat "Transform")
+         spos (get snap "Position")
+         coord {:x (+ (get mat-pos "posX")
+                      (* (get spos "x")
+                         (get mat-pos "scaleX")))
+                :y (+ (get mat-pos "posY")
+                      (* (get spos "y")
+                         (get mat-pos "scaleY")))
+                :z (+ (get mat-pos "posZ")
+                      (* (get spos "z")
+                         (get mat-pos "scaleZ")))}
+         {x "posX"
+          y "posY"
+          z "posZ"
+          sx "scaleX"
+          sy "scaleT"} (get o "Transform")
+]
+     (if (and x y z)
+       (+ (Math/pow (- x (:x coord)) 2)
+          (Math/pow (- y (:y coord)) 2)
+          (Math/pow (- z (:z coord)) 2)
+          )
+       Double/MAX_VALUE))))
+
+
 (defn find-deck-for-snap
   ([game snap]
    (find-deck-for-snap
@@ -180,49 +216,70 @@
                   "scaleZ" 1}}
     snap))
   ([game mat snap]
-   (let [mat-pos (get mat "Transform")
-         spos (get snap "Position")
-         coord {:x (+ (get mat-pos "posX")
-                      (* (get spos "x")
-                         (get mat-pos "scaleX")))
-                :y (+ (get mat-pos "posY")
-                      (* (get spos "y")
-                         (get mat-pos "scaleY")))
-                :z (+ (get mat-pos "posZ")
-                      (* (get spos "z")
-                         (get mat-pos "scaleZ")))}
-         key-fn (fn [o]
-                  (let [{x "posX"
-                         y "posY"
-                         z "posZ"
-                         sx "scaleX"
-                         sy "scaleT"} (get o "Transform")]
-                    (if (and x y z)
-                      (+ (Math/pow (- x (:x coord)) 2)
-                         (Math/pow (- y (:y coord)) 2)
-                         ;;(Math/pow (- z (:z coord)) 2)
-                         )
-                      Double/MAX_VALUE)))
-         closest (apply min-key key-fn (get game "ObjectStates"))
-         sanity? (and (= "Deck" (get closest "Name")))]
-     (when sanity?
-       closest
-       (->> (get closest "ContainedObjects")
-            (map #(get % "Nickname"))
-            (into #{}))))))
+   (let [closest (->> (get game "ObjectStates")
+                      (filter #(= "Deck" (get % "Name")))
+                      (apply min-key
+                             #(distance mat snap %)))
+         o (find-object-for-snap game mat snap)]
+     (when (< (distance mat snap o) 0.5)
+      (->> (get o "ContainedObjects")
+           (map #(get % "Nickname"))
+           (into #{}))))))
 
-(defn get-buildings [game]
+
+
+
+(defn get-buildings-next-level [game]
   (let [mat (->> (get game "ObjectStates")
                  (filter #(= "Outpost"
                              (get % "Nickname")))
                  first)
-        snaps (get game "SnapPoints")
         snaps (get mat "AttachedSnapPoints")
         snap (->> snaps
                   (filter #(set/subset? #{"deck" "building"}
                                         (set (get % "Tags"))))
                   first)
         all-ids (find-deck-for-snap game mat snap)
+        by-id (group-by (fn [s]
+                          (str/trim (second (str/split s #"-"))))
+                        all-ids)
+        ids (into []
+                  (map (fn [[id xs]]
+                         (apply
+                          min-key
+                          (fn [s]
+                            (let [lvl (re-find #"[0-9]+$" s)]
+                              (parse-long lvl)))
+                          xs)))
+                  by-id)]
+    ids))
+
+(defn get-buildings [game]
+  (let [mat (->> (get game "ObjectStates")
+                 (filter #(= "Outpost"
+                             (get % "Nickname")))
+                 first)
+
+        snaps (->> (get mat "AttachedSnapPoints")
+                   (filter #(set/subset? #{"building"}
+                                         (set (get % "Tags")))))
+        objects (->> (get game "ObjectStates")
+                     (filter #(set/subset? #{"building"}
+                                           (set (get % "Tags"))))
+                     (filter #(= "Card"
+                                 (get % "Name"))))
+        find-closest
+        (fn [snap]
+          (let [o (->> objects
+                       (apply
+                        min-key
+                        #(distance mat snap %)))]
+            (when (< (distance mat snap o) 0.5)
+              o)))
+        all-ids (->> snaps
+                     (map #(find-closest %))
+                     (remove nil?)
+                     (map #(get % "Nickname")))
         by-id (group-by (fn [s]
                           (str/trim (second (str/split s #"-"))))
                         all-ids)
