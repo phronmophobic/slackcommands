@@ -771,10 +771,13 @@
         ]
     (buildings-by-xws xws)))
 
-(defn building-response []
-  (let [buildings
+(defn building-response [kind]
+  (let [get-buildings (case kind
+                        :current ttsim/get-buildings
+                        :next ttsim/get-buildings-next-level)
+        buildings
         (map ->building
-             (ttsim/get-buildings(ttsim/default-game)))
+             (get-buildings (ttsim/default-game)))
         url (util/building-image
              (map image-url buildings))
         blocks [{"type" "image",
@@ -896,14 +899,18 @@ or for items:
        :headers {"Content-type" "application/json"}
        :status 200}
 
-      (#{"buildings"
-         "building"} text)
+      (str/starts-with? text "building")
       (do
         (future
           (try
-            (let [response-url (get-in request [:form-params "response_url"])]
+            (let [kind (case text
+                         ("building" "buildings")
+                         :current
+
+                         :next)
+                  response-url (get-in request [:form-params "response_url"])]
               (client/post response-url
-                           {:body (json/write-str (building-response))
+                           {:body (json/write-str (building-response kind))
                             :headers {"Content-type" "application/json"}}))
             (catch Exception e
               (prn e))))
