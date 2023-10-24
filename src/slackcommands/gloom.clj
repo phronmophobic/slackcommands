@@ -897,13 +897,16 @@ or for items:
        :status 200}
 
       (#{"buildings"
-         "building"})
+         "building"} text)
       (do
         (future
-          (let [response-url (get-in request [:form-params "response_url"])]
-            (client/post response-url
-                         {:body (building-response)
-                          :headers {"Content-type" "application/json"}})))
+          (try
+            (let [response-url (get-in request [:form-params "response_url"])]
+              (client/post response-url
+                           {:body (json/write-str (building-response))
+                            :headers {"Content-type" "application/json"}}))
+            (catch Exception e
+              (prn e))))
         {:body (json/write-str
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}
