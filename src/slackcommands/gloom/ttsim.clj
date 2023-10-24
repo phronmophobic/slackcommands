@@ -170,14 +170,14 @@
 
 (defn distance
   ([snap o]
-   (distance game
-             {"Transform" {"posX" 0
+   (distance {"Transform" {"posX" 0
                            "posY" 0
                            "posZ" 0
                            "scaleX" 1
                            "scaleY" 1
                            "scaleZ" 1}}
-             snap))
+             snap
+             o))
   ([mat snap o]
    (let [mat-pos (get mat "Transform")
          spos (get snap "Position")
@@ -216,15 +216,14 @@
                   "scaleZ" 1}}
     snap))
   ([game mat snap]
-   (let [closest (->> (get game "ObjectStates")
-                      (filter #(= "Deck" (get % "Name")))
-                      (apply min-key
-                             #(distance mat snap %)))
-         o (find-object-for-snap game mat snap)]
+   (let [o (->> (get game "ObjectStates")
+                (filter #(= "Deck" (get % "Name")))
+                (apply min-key
+                       #(distance mat snap %)))]
      (when (< (distance mat snap o) 0.5)
-      (->> (get o "ContainedObjects")
-           (map #(get % "Nickname"))
-           (into #{}))))))
+       (->> (get o "ContainedObjects")
+            (map #(get % "Nickname"))
+            (into #{}))))))
 
 
 
