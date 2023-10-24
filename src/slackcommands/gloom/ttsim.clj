@@ -91,6 +91,21 @@
         (map ->sheet)
         (find-by-tags game ["character sheet"])))
 
+(defn prosperity-points->level [pts]
+  (loop [prosperity 1
+         prev-level 0
+         next-level 6]
+    (if (>= pts next-level)
+      (recur (inc prosperity)
+             next-level
+             (+ next-level 3 (- next-level prev-level)))
+      (str prosperity
+           " "
+           (- (- next-level prev-level)
+              (-  next-level pts))
+           "/"
+           (- next-level prev-level)))))
+
 (defn ->campaign [sheet]
   (let [lua-script-state-json (get sheet "LuaScriptState")
         script-state (json/read-str lua-script-state-json)
@@ -101,13 +116,13 @@
                              (when (seq (get state k))
                                i))))
                    last)
-        prosperity (->> (range 1 10)
-                   (keep (fn [i]
-                           (let [k (str "prosperity" i)]
-                             (when (seq (get state k))
-                               i))))
-                   last)]
-    {:prosperity prosperity
+        prosperity-points (->> (range 1 10)
+                               (keep (fn [i]
+                                       (let [k (str "prosperity" i)]
+                                         (when (seq (get state k))
+                                           i))))
+                               last)]
+    {:prosperity (prosperity-points->level prosperity-points)
      :morale morale
      :defense (parse-long (get state "total_defense"))
      :inspiration (parse-long (get state "inspiration"))
