@@ -7,7 +7,8 @@
             slackcommands.util
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.params]
-            [ clojure.core.memoize :as memo]
+            [clojure.core.memoize :as memo]
+            [clojure.edn :as edn]
             [compojure.core :refer [defroutes routes GET POST DELETE ANY context]
              :as compojure]
             [compojure.route :as route]
@@ -37,20 +38,17 @@
 
 
 
-(defn get-secrets []
-  (json/read
-   (clojure.java.io/reader
-    (or (clojure.java.io/resource "secrets.json")
-        (clojure.java.io/file "resources/secrets.json")))))
 
+(def battle-net-credentials
+  (:battle-net
+   (edn/read-string (slurp "secrets.edn"))))
 ;; https://slack.com/help/articles/360001623607-Create-commands-for-Slack-apps
-
 (defn get-access-token []
   (let [result (client/post "https://us.battle.net/oauth/token"
                            {:query-params
                             (merge
                              {"grant_type" "client_credentials"}
-                             (get-secrets))})
+                             battle-net-credentials)})
         body (:body result)
         obj (json/read-json body)
         token (:access_token obj)]
