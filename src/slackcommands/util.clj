@@ -24,7 +24,7 @@
   (doto (io/file "aimages")
     (.mkdirs)))
 
-(def image-host "wavelength.smith.rocks")
+(def image-host "slackcommand.smith.rocks")
 ;; slack won't show preview images from just any port
 ;; but port 3000 seems to work
 (def image-port 3000 )
