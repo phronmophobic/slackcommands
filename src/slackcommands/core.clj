@@ -712,8 +712,8 @@
          :status 200})
 
    (ANY "/terminator-image" []
-        ai/stable-image-command
-        #_ai/image-command)
+        ;; ai/stable-image-command
+        ai/image-command)
 
    (ANY "/terminator-stable-image" []
         ai/stable-image-command)

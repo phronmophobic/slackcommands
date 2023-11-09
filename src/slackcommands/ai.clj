@@ -265,6 +265,16 @@
     {"response_type" "in_channel"
      "blocks" main-blocks}))
 
+(defn dalle3-image-response [prompt url]
+  (let [title (truncate-from-end prompt 82)
+        main-blocks [{"type" "image",
+                      "title" {"type" "plain_text",
+                               "text" title},
+                      "image_url" url
+                      "alt_text" title}]]
+    {"response_type" "in_channel"
+     "blocks" main-blocks}))
+
 (defn block-zip [blocks]
   (z/zipper vector?
             seq
@@ -374,11 +384,12 @@
         (wrap-exception
          response-url
          (let [response (api/create-image {:prompt text
-                                           :n 4
+                                           :n 1
+                                           :model "dall-e-3"
                                            :size
-                                           "256x256"
+                                           ;; "256x256"
                                            ;; "512x512"
-                                           ;; "1024x1024"
+                                           "1024x1024"
                                            }
                                           {:api-key api-key})
 
@@ -388,14 +399,12 @@
                           (comp (map :url)
                                 (map-indexed
                                  (fn [i url]
-                                   (let [fname (str response-id "-" i ".png")]
-                                     (util/save-image fname
-                                                      url)))))
+                                   (util/save-large-png url))))
                           (:data response))]
 
            (client/post response-url
                         {:body (json/write-str
-                                (image-response text urls 0))
+                                (dalle3-image-response text (first urls)))
                          :headers {"Content-type" "application/json"}})))))
 
     {:body (json/write-str
