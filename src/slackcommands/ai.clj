@@ -399,7 +399,7 @@
                           (comp (map :url)
                                 (map-indexed
                                  (fn [i url]
-                                   (util/save-large-png url))))
+                                   (util/save-and-upload-large-png url))))
                           (:data response))]
 
            (client/post response-url
