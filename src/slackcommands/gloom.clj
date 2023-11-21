@@ -30,6 +30,14 @@
            ~expr
            (cond-let ~bindings ~@more))))))
 
+(defn markdown-response [s]
+  (json/write-str
+   {"response_type" "in_channel"
+    "blocks"
+    [{"type" "section"
+      "text" {"type" "mrkdwn",
+              "text" s}}]}))
+
 (defn card-level [card]
   (case (:level card)
     ("-" "A" "B" "M" "P" "V" "X") 1
@@ -927,17 +935,20 @@ or for buildings:
           (str/starts-with? text "item"))
       (do
         (future
-          (let [query-str (or (second (str/split text #" " 2))
-                              "")
-                _ (prn "items" query-str)
-                items (find-items query-str)
-                response-url (get-in request [:form-params "response_url"])]
-            (client/post response-url
-                         {:body (if (seq items)
-                                  (json/write-str
-                                   (item-response items 0))
-                                  "No cards found.")
-                          :headers {"Content-type" "application/json"}})))
+          (try
+            (let [query-str (or (second (str/split text #" " 2))
+                                "")
+                  _ (prn "items" query-str)
+                  items (find-items query-str)
+                  response-url (get-in request [:form-params "response_url"])]
+              (client/post response-url
+                           {:body (if (seq items)
+                                    (json/write-str
+                                     (item-response items 0))
+                                    (markdown-response "No cards found."))
+                            :headers {"Content-type" "application/json"}}))
+            (catch Exception e
+              (prn e))))
         {:body (json/write-str
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}
