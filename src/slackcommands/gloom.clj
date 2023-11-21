@@ -458,7 +458,7 @@
 
 
 (defn remove-card-dupes [cards]
-  (let [cards-by-xws (group-by :xws cards)]
+  (let [cards-by-xws (group-by (juxt :xws :character-xws) cards)]
     (into #{}
           (map (fn [[xws cards]]
                  (apply max-key :points cards)))
@@ -542,6 +542,9 @@
    
    "voidy"
    {:character "voidwarden"}
+
+   "crab"
+   {:character "deepwraith"}
 
    "all-characters"
    {:character (vec character-xws?)}
