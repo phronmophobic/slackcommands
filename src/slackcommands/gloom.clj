@@ -851,7 +851,7 @@
       (->> available-items
            (filter :craftable))
 
-      "purchasable"
+      ("purchasable" "purchaseable")
       (->> available-items
            (filter :purchasable))
 
