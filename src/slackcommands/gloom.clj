@@ -621,8 +621,8 @@
                          :expansion ["Gloomhaven"
                                      "Frosthaven"
                                      "Jaws Of The Lion"]))
-        party ["drifter"
-               "trapper"
+        party ["boneshaper"
+               "deepwraith"
                "deathwalker"]
         command (if (:character command)
                   command
