@@ -8,6 +8,8 @@
             [slingshot.slingshot :refer [try+]]
             [slackcommands.util :as util]
             [slackcommands.stability :as stability]
+            [slackcommands.slack :as slack]
+            [clj-slack.chat :as slack-chat]
             [clojure.zip :as z]
             [clojure.edn :as edn]
             [com.phronemophobic.discord.api :as discord])
@@ -482,6 +484,7 @@ See <https://docs.midjourney.com/docs/models> for more options.
 
 (defn midjourney-image-command [request]
   (let [text (get-in request [:form-params "text"])
+        channel-id (get-in request [:form-params "channel_id"])
         response-url (get-in request [:form-params "response_url"])]
 
     (if (#{"" "help"} (str/trim text))
@@ -497,21 +500,46 @@ See <https://docs.midjourney.com/docs/models> for more options.
         (println "midjourney: " text)
         (when (seq (clojure.string/trim text))
           (future
-            (wrap-exception
-             response-url
-             (let [prompt (augment-midjourney-prompt text)
-                   response (discord/create-image prompt)]
-               (if-let [url (:url response)]
-                 (let [[top bottom] (split-large-png url)]
-                   (client/post response-url
-                                {:body (json/write-str
-                                        (midjourney-image-response text top "top"))
-                                 :headers {"Content-type" "application/json"}})
-                   (client/post response-url
-                                {:body (json/write-str
-                                        (midjourney-image-response text bottom "bottom"))
-                                 :headers {"Content-type" "application/json"}}))
-                 (throw (ex-info "Error" response)))))))
+            (let [{:keys [ts]
+                   :as msg} 
+                  (slack-chat/post-message 
+                   slack/conn
+                   channel-id 
+                   (str ":waitingcat: " text))]
+              (wrap-exception
+                  response-url
+                (let [prompt (augment-midjourney-prompt text)
+                      response (discord/create-image prompt)]
+                  (if-let [url (:url response)]
+                    (let [
+                          title (truncate-from-end text 82)]
+                      (if ts
+                        (let [img-urls (util/split-large-png url)]
+                          (slack/message-update 
+                           slack/conn
+                           channel-id
+                           ts
+                           {"attachments"
+                            (json/write-str 
+                             (into []
+                                   (map
+                                    (fn [[i url]]
+                                      {
+                                       "fallback" (str title "("i ")")
+                                       "image_url" url
+                                       "footer" (str title "(" i ")")}))
+                                   (map vector ["top" "bottom"] img-urls)))}))
+                        (let [[top bottom] (split-large-png url)]
+                          (client/post response-url
+                                       {:body (json/write-str
+                                               (midjourney-image-response text top "top"))
+                                        :headers {"Content-type" "application/json"}})
+                          (client/post response-url
+                                       {:body (json/write-str
+                                               (midjourney-image-response text bottom "bottom"))
+                                        :headers {"Content-type" "application/json"}}))))
+                    (throw (ex-info "Error" response))))))))
+
         {:body (json/write-str
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}

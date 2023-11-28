@@ -92,6 +92,42 @@
       [(str "https://" "aimages.smith.rocks/" top-fname)
        (str "https://" "aimages.smith.rocks/" bottom-fname)])))
 
+(defn split4-large-png [url]
+  (binding [skia/*image-cache* (atom {})]
+    (let [
+          view (ui/image (io/as-url url))
+          [w h] (ui/bounds view)
+          half-height (quot h 2)
+          half-width (quot w 2)
+          tl (ui/scissor-view [0 0]
+                              [half-width half-height]
+                              view)
+          tr (ui/scissor-view [0 0]
+                              [half-width half-height]
+                              (ui/translate (- half-width) 0
+                                            view))
+          bl (ui/scissor-view [0 0]
+                              [half-width half-height]
+                              (ui/translate 0 (- half-height)
+                                            view))
+          br (ui/scissor-view [0 0]
+                              [half-width half-height]
+                              (ui/translate (- half-width) (- half-height)
+                                            view))]
+      (into []
+            (comp
+             (map (fn [view]
+                    (let [f (io/file aimage-dir (str (random-uuid) ".jpg"))]
+                      (skia/save-image (.getAbsolutePath f)
+                                       view)
+                      f)))
+             (map (fn [f]
+                    (upload-file f)
+                    f))
+             (map (fn [f]
+                    (str "https://" "aimages.smith.rocks/" (.getName f)))))
+            [tl tr bl br]))))
+
 
 (defn building-image [urls]
   (binding [skia/*image-cache* (atom {})]

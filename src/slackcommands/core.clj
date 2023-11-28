@@ -5,9 +5,11 @@
             [org.httpkit.server :as server]
             [ring.util.response :as response]
             slackcommands.util
+            slackcommands.slack
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.params]
             [clojure.core.memoize :as memo]
+            [clojure.java.io :as io]
             [clojure.edn :as edn]
             [compojure.core :refer [defroutes routes GET POST DELETE ANY context]
              :as compojure]
@@ -726,6 +728,18 @@
                 {:root (.getAbsolutePath slackcommands.util/aimage-dir)})
 
 
+   (route/files "/.well-known/"
+                {:root (-> (io/file "certbot" ".well-known")
+                           (.getCanonicalPath))})
+
+
+   #_(ANY "/oauth/redirect" []
+     slackcommands.slack/oauth-redirect)
+
+   (ANY "/slack/events" []
+     slackcommands.slack/events-api)
+
+
    (ANY "/terminator-chat" []
         ai/chat-command)
 
@@ -758,9 +772,11 @@
   [& args]
 
   ;; initiation protocol
-  ;; 0. did you start with xvfb-run?
+  ;; 0. did you start with `xvfb-run -a` and `authbind --deep`?
   ;; 1. start server
   (def server2 (server/run-server #'my-app {:port 3000}))
+  ;; did you start with `authbind --deep`?
+  ;; (def server2 (server/run-server #'my-app {:port 80}))
   (comment
     ;; 2. run. did you start with xvfb-run?
     (com.phronemophobic.discord.viewer/start-browser-server)
@@ -773,9 +789,5 @@
 
 
 
-#_(json/read
 
-(clojure.java.io/reader (clojure.java.io/file "temp.json"))
-
- )
 
