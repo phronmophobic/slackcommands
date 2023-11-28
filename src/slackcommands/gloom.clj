@@ -3,14 +3,21 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clj-http.client :as client]
+            [wkok.openai-clojure.api :as openai]
             [clojure.pprint :as pp]
             [clojure.core.memoize :as memo]
             [slackcommands.gloom.ttsim :as ttsim]
             [slackcommands.util :as util]
+            [clojure.zip :as z]
+            [clojure.edn :as edn]
             [clojure.data.json :as json])
   (:import java.util.regex.Pattern)
   #_(:import com.github.benmanes.caffeine.cache.Caffeine
            java.util.concurrent.TimeUnit))
+
+(def openai-key
+  (:chatgpt/api-key
+   (edn/read-string (slurp "secrets.edn"))))
 
 (defmacro cond-let
   "Takes a binding-form and a set of test/expr pairs. Evaluates each test
@@ -255,12 +262,165 @@
             (ttsim/campaign-sheet (ttsim/default-game))))
   ,)
 
+(defn block-zip [blocks]
+  (z/zipper vector?
+            seq
+            (fn [v children]
+              (into (empty v) children))
+            blocks))
+
+(defn reset-chat-text-input [blocks]
+  (let [zip (block-zip blocks)]
+    (loop [zip zip]
+      (if (z/end? zip)
+        (z/root zip)
+        ;; else
+        (let [m (z/node zip)
+              new-zip (if (= "input" (get m "type"))
+                        (z/replace zip (dissoc m "block_id"))
+                        zip)]
+          (recur (z/next new-zip))))))
+  )
+
 (defn stats-response []
   (let [blocks [{"type" "section",
                  "text" {"type" "mrkdwn",
                          "text" (stats->md)}}]]
     {"response_type" "in_channel"
      "blocks" blocks}))
+
+
+(def rules-assistant-id "asst_6t54KDnUcP4n2MiPrljbdTyG")
+(defn send-rules-response
+  [{:keys [response-url thread-ts thread-id text] :as m}]
+  (when (seq (clojure.string/trim text))
+    (future
+      (try
+        (let [thread (if thread-id
+                       (do
+                         (openai/create-message {:thread_id thread-id
+                                                 :role "user"
+                                                 :content text}
+                                                {:api-key openai-key})
+                         {:id thread-id})
+                       (openai/create-thread {:messages [{:role "user" :content text}]}
+                                             {:api-key openai-key}))
+              run (openai/create-run {:thread_id (:id thread)
+                                      :assistant_id rules-assistant-id}
+                                     {:api-key openai-key})
+              ;; poll for completion
+              _ (loop [i 0]
+                  (Thread/sleep 5000)
+                  (let [status (openai/retrieve-run {:thread_id (:id thread)
+                                                     :run_id (:id run)}
+                                                    {:api-key openai-key})
+                        parsed-status
+                        ;; fail after 10 minutes
+                        (if (> i 120)
+                          :fail
+                          (case (:status status)
+                            ("completed")
+                            :complete
+
+                            ("expired" "failed" "cancelled")
+                            :fail
+
+                            :waiting))]
+                    (case parsed-status
+                      :complete
+                      true
+                      
+                      :fail
+                      (do
+                        (client/post response-url
+                                     {:body (json/write-str
+                                             {
+                                              "response_type" "in_channel",
+                                              "blocks"
+                                              [{"type" "section"
+                                                "text" {"type" "plain_text"
+                                                        "emoji" true
+                                                        "text" (str "ai failed.")}}]
+                                              "replace_original" true})
+                                      :headers {"Content-type" "application/json"}})
+                        (throw (Exception. "fail.")))
+                      ;; else
+                      (recur (inc i)))))
+
+              all-messages-response (openai/list-messages {:thread_id (:id thread)}
+                                                          {:api-key openai-key})
+              final-messages (->> all-messages-response
+                                  :data
+                                  (into []
+                                        (keep
+                                         (fn [msg]
+                                           (let [text
+                                                 (->> (:content msg)
+                                                      (filter #(= "text" (:type %)))
+                                                      first)]
+                                             (when text
+                                               (let [annotations (-> text :text :annotations)
+                                                     annotations-str 
+                                                     (when (seq annotations)
+                                                       (str "\n"
+                                                            (clojure.string/join
+                                                             "\n"
+                                                             (eduction
+                                                              (map (fn [ann]
+                                                                     (str "> " 
+                                                                          (-> ann
+                                                                              :file_citation
+                                                                              :quote))))
+                                                              annotations))))
+                                                     content
+                                                     (str 
+                                                      (-> text :text :value)
+                                                      annotations-str)]
+                                                {:role (:role msg)
+                                                 :content content})))))))
+
+              full-response (clojure.string/join "\n\n"
+                                                 (into []
+                                                       (comp (map (fn [{:keys [role content]}]
+                                                                    (case role
+                                                                      "user" (str "*" content "*")
+                                                                      "assistant"  content))))
+                                                       (take-last 2
+                                                                  (reverse final-messages))))]
+          
+          (doseq [chunk (partition-all 2999 full-response)
+                  :let [subresponse (apply str chunk)]]
+            (client/post response-url
+                         {:body (json/write-str
+                                 (merge
+                                  {
+                                   "response_type" "in_channel",
+                                   "blocks"
+                                   [{"type" "section"
+                                     "text" {"type" "mrkdwn"
+                                             "text" subresponse}}
+                                    {
+                                     "dispatch_action" true,
+                                     "type" "input",
+                                     "element" {
+                                                "type" "plain_text_input",
+                                                "action_id" (make-action
+                                                             [:chat-more (:id thread)])
+                                                },
+                                     "label" {
+                                              "type" "plain_text",
+                                              "text" "yes, and?",
+                                              "emoji" true
+                                              }
+                                     }
+                                    ]
+                                   ;; "thread_ts" thread-ts
+                                   "replace_original" false}
+                                  (when thread-ts
+                                    {"thread_ts" thread-ts})))
+                          :headers {"Content-type" "application/json"}})))
+        (catch Exception e
+          (clojure.pprint/pprint e))))))
 
 (defn gh-command-interact [request]
   (let [payload (json/read-str (get (:form-params request) "payload"))
@@ -269,7 +429,17 @@
                    (get "actions")
                    first
                    (get "value"))
-        [action-type & action-args :as event] (get-action action)]
+        action-id (-> payload
+                      (get "actions")
+                      first
+                      (get "action_id"))
+        [action-type & action-args :as event]
+        (cond
+          (.startsWith action "gh")
+          (get-action action)
+
+          (.startsWith action-id "gh")
+          (get-action action-id))]
 
     (case action-type
 
@@ -348,6 +518,26 @@
         {:body "ok"
          :headers {"Content-type" "application/json"}
          :status 200})
+
+      :chat-more
+      (let [[_ thread-id] event]
+        (let [ts (get-in payload ["message" "thread_ts"]
+                         (get-in payload ["message" "ts"]))]
+          (send-rules-response
+           {:response-url url
+            :thread-ts ts
+            :thread-id thread-id
+            :text action})
+          (future
+            (let [blocks (get-in payload ["message" "blocks"])]
+              (client/post url
+                           {:body (json/write-str
+                                   {"blocks" (reset-chat-text-input blocks)
+                                    "response_type" "in_channel"
+                                    "replace_original" true})
+                            :headers {"Content-type" "application/json"}})))
+
+          {:status 200}))
 
       )))
 

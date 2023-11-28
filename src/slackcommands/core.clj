@@ -609,7 +609,9 @@
                (.startsWith action-id "ai")))
       (ai/ai-command-interact request)
 
-      (.startsWith action "gh")
+      (or (.startsWith action "gh")
+          (and action-id
+               (.startsWith action-id "gh")))
       (gloom/gh-command-interact request)
 
       :else
@@ -742,6 +744,9 @@
 
    (ANY "/terminator-chat" []
         ai/chat-command)
+
+   (ANY "/frostrules" []
+        gloom/frostrules-command)
 
    (GET "/debug" []
         {:body (json/write-str (card-response "Onyx Magescribe"
