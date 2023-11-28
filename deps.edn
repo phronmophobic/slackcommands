@@ -22,7 +22,9 @@
         amazonica/amazonica {:mvn/version "0.3.165"}
         }
  :aliases
- {:project
+ {:server
+  {:jvm-opts ["-Xmx512M"]}
+  :project
   {:extra-deps
    {;; com.phronemophobic/membrane {:mvn/version "0.12.2-beta"}
     com.phronemophobic/membrane {:local/root "../membrane2"}
