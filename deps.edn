@@ -15,10 +15,10 @@
         net.clojars.wkok/openai-clojure {:mvn/version "0.14.0"}
 
         com.phronemophobic.discord {:local/root "../discord"}
-        com.phronemophobic/membrane {;; :mvn/version "0.13.1-beta"
-                                     :git/url "https://github.com/phronmophobic/membrane"
-                                     :git/sha "0539b69e36db6f3cfd7ca6941366032da5e110f5"
-                                     }
+        com.phronemophobic/membrane {:mvn/version "0.14.3-beta"}
+        com.phronemophobic.membrane/skialib-linux-x86-64 {:mvn/version "0.14-beta"
+                                                      ;; :local/root "/home/app/membrane/csource/linux-x86-64"
+                                                      }
         amazonica/amazonica {:mvn/version "0.3.165"}
         }
  :aliases
