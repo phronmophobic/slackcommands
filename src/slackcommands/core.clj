@@ -723,7 +723,8 @@
         ai/stable-image-command)
 
    (ANY "/midjourney" []
-        ai/midjourney-image-command2)
+        ai/midjourney-image-command)
+
 
 
    (route/files "/aimages/"

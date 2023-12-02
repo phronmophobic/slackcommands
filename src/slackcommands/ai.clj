@@ -185,7 +185,8 @@
          ~'send-blocks
          (if ts#
            (fn [blocks#]
-             (~'send-update {"blocks" blocks#}))
+             (~'send-update {"blocks" 
+                             (json/write-str blocks#)}))
            (fn [blocks#]
              (client/post
               response-url#
@@ -193,24 +194,28 @@
                       (merge
                        {"response_type" "in_channel",
                         "blocks" blocks#
-                        "replace_original" true}
+                        "replace_original" false
+                        }
                        (when response-ts#
                          {"thread_ts" response-ts#})))
                :headers {"Content-type" "application/json"}})))]
      (try+
        ~@body
        (catch [:error :timeout] m#
+         (clojure.pprint/pprint m#)
          (~'send-blocks
           [{"type" "section"
             "text" {"type" "plain_text"
                     "emoji" true
                     "text" (str ":frogsiren: timeout for \"" (:prompt m#) "\"")}}]))
        (catch :message m#
+         (clojure.pprint/pprint m#)
          (~'send-blocks [{"type" "section"
                           "text" {"type" "plain_text"
                                   "emoji" true
                                   "text" (str ":frogsiren: :" (:message m#))}}]))
        (catch Exception e#
+         (clojure.pprint/pprint e#)
          (~'send-blocks [{"type" "section"
                           "text" {"type" "plain_text"
                                   "emoji" true
@@ -378,7 +383,7 @@
 (defn ai-command-interact [request]
   (let [payload (json/read-str (get (:form-params request) "payload"))
         url (get payload "response_url")
-        channel-id (get payload "channel_id")
+        channel-id (get-in payload ["channel" "id"])
         action (-> payload
                    (get "actions")
                    first
@@ -420,7 +425,6 @@
             )
          (let [ts (get-in payload ["message" "thread_ts"]
                           (get-in payload ["message" "ts"]))]
-           (prn "chat more" channel-id)
            (send-chat-response
             {:response-url url
              :thread-ts ts
@@ -564,70 +568,6 @@ See <https://docs.midjourney.com/docs/models> for more options.
       (util/split-large-png url))))
 
 (defn midjourney-image-command [request]
-  (let [text (get-in request [:form-params "text"])
-        channel-id (get-in request [:form-params "channel_id"])
-        response-url (get-in request [:form-params "response_url"])]
-
-    (if (#{"" "help"} (str/trim text))
-      {:body (json/write-str
-              {"response_type" "in_channel"
-               "blocks" [{"type" "section"
-                          "text" {"type" "mrkdwn"
-                                  "text" (str "```\n" (midjourney-help-text) "\n```")}}]})
-       :headers {"Content-type" "application/json"}
-       :status 200}
-      ;; else
-      (do
-        (println "midjourney: " text)
-        (when (seq (clojure.string/trim text))
-          (future
-            (let [{:keys [ts]
-                   :as msg} 
-                  (slack-chat/post-message 
-                   slack/conn
-                   channel-id 
-                   (str ":waitingcat: " text))]
-              (wrap-exception
-                  response-url
-                (let [prompt (augment-midjourney-prompt text)
-                      response (discord/create-image prompt)]
-                  (if-let [url (:url response)]
-                    (let [
-                          title (truncate-from-end text 82)]
-                      (if ts
-                        (let [img-urls (util/split-large-png url)]
-                          (slack/message-update 
-                           slack/conn
-                           channel-id
-                           ts
-                           {"attachments"
-                            (json/write-str 
-                             (into []
-                                   (map
-                                    (fn [[i url]]
-                                      {
-                                       "fallback" (str title "("i ")")
-                                       "image_url" url
-                                       "footer" (str title "(" i ")")}))
-                                   (map vector ["top" "bottom"] img-urls)))}))
-                        (let [[top bottom] (split-large-png url)]
-                          (client/post response-url
-                                       {:body (json/write-str
-                                               (midjourney-image-response text top "top"))
-                                        :headers {"Content-type" "application/json"}})
-                          (client/post response-url
-                                       {:body (json/write-str
-                                               (midjourney-image-response text bottom "bottom"))
-                                        :headers {"Content-type" "application/json"}}))))
-                    (throw (ex-info "Error" response))))))))
-
-        {:body (json/write-str
-                {"response_type" "in_channel"})
-         :headers {"Content-type" "application/json"}
-         :status 200}))))
-
-
-(defn midjourney-image-command2 [request]
   (let [text (get-in request [:form-params "text"])
         channel-id (get-in request [:form-params "channel_id"])
         response-url (get-in request [:form-params "response_url"])]
