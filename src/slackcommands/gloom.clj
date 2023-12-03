@@ -1172,6 +1172,18 @@ or for buildings:
          :status 200})
       )))
 
+(defn frostrules-command [request]
+  (let [text (get-in request [:form-params "text"])
+        response-url (get-in request [:form-params "response_url"])]
+    (println "rules" ": " text)
+    (send-rules-response
+     {:response-url response-url
+      :text text})
+    {:body (json/write-str
+            {"response_type" "in_channel"}) 
+     :headers {"Content-type" "application/json"}
+     :status 200}))
+
 (comment
   (require '[membrane.skia :as skia]
            '[membrane.ui :as ui])
