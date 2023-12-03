@@ -44,6 +44,13 @@
                 f)))
    (str "http://" image-host ":" image-port "/aimages/" fname)))
 
+(defn url->file [fname url]
+  (let [f (io/file aimage-dir fname)]
+    (with-open [is (io/input-stream (io/as-url url))]
+      (io/copy is
+               f))
+    f))
+
 (defn save-large-png [url]
   (binding [skia/*image-cache* (atom {})]
     (let [view (ui/image (io/as-url url))
