@@ -5,6 +5,8 @@
             [clj-slack.files :as files]
             [clj-slack.core :refer [slack-request]]
             [clj-http.client :as client]
+            [slackcommands.ai.assistant :as assistant]
+            [clojure.core.async :as async]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
             [clojure.edn :as edn]))
@@ -21,9 +23,9 @@
                  (merge {"ts" timestamp "channel" channel-id}
                         opts)))
 
-
+(defonce sent-msg-ids (atom #{}))
 (defn events-api [req]
-  ;; (clojure.pprint/pprint req)
+  (clojure.pprint/pprint req)
   (let [js (with-open [body (:body req)
                        rdr (io/reader body)]
              (json/read rdr))
@@ -35,19 +37,44 @@
                  (get "blocks")
                  first
                  (get "elements")
-                 (->> (filter #(= "text" (get % "type")))))]
-    ;; (clojure.pprint/pprint js)
-    (chat/post-message conn channel
-                     "hullo"
-                     (merge
-                      {}
-                      {"thread_ts" 
-                       (if thread-ts
-                         thread-ts
-                         (get event "ts"))}))
-    {;;:body (get js "challenge")
-     ;; :headers {"Content-type" "text/plain"}
-       :status 200}))
+                 (->>
+                  (tree-seq 
+                   (fn [o]
+                     (or (vector? o)
+                         (map? o)))
+                   (fn [o]
+                     (cond
+                       (vector? o) (seq o)
+                       (map? o) (seq (get o "elements"))))))
+                 (->> (filter #(#{"text" "link"} (get % "type")))
+                      (map (fn [m]
+                             (or (get m "url")
+                                 (get m "text")))))
+                 clojure.string/join)
+
+        thread-id (if thread-ts
+                    thread-ts
+                    (get event "ts"))
+        ch (async/chan)]
+    (async/thread
+      (prn "responding to" ch thread-id text)
+      (assistant/respond ch thread-id text))
+    (async/thread
+      (loop []
+        (when-let [{:keys [id text] :as msg} (async/<!! ch)]
+          (prn "got msg" msg)
+          (let [[old _] (swap-vals! sent-msg-ids conj id)]
+            (when (not (contains? old id))
+              (chat/post-message conn channel
+                                 text
+                                 (merge
+                                  {}
+                                  {"thread_ts" thread-id})))
+            (recur)))))
+
+    {;; :body (get js "challenge")
+     :headers {"Content-type" "text/plain"}
+     :status 200}))
 
 (comment
   (conversations/list conn 

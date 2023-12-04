@@ -2,6 +2,7 @@
   (:require [wkok.openai-clojure.api :as openai]
             [clojure.java.shell :as sh]
             [clojure.edn :as edn]
+            [clojure.core.async :as async]
             [clj-http.client :as http]
             [clojure.data.json :as json]
             [com.phronemophobic.discord.api :as discord]
@@ -17,6 +18,8 @@
 
 (def assistant-id "asst_FFFmAt4eemrv3BZ8TFUq4Ob5")
 
+(defn sanitize-name [s]
+  (str/replace s #"[^A-Za-z0-9]" "-"))
 
 (defonce tool-executor
   (delay
@@ -34,6 +37,32 @@
                 thread)))]
       (Executors/newCachedThreadPool thread-factory))))
 
+(comment
+  ;; alloy, echo, fable, onyx, nova, and shimmer
+  (def voice "alloy")
+  (def speech
+    (openai/create-speech {:model "tts-1"
+                          :input "hello"
+                          :voice voice
+                          :response_format "mp3"}
+                         {:api-key openai-key}))
+,)
+
+(defn truncate [s n]
+  (subs s 0 (min (count s)
+                 n)))
+
+(defn text-to-speech [{:strs [text voice]}]
+  (let [voice (or voice "alloy")
+        is (openai/create-speech {:model "tts-1"
+                                  :input text
+                                  :voice voice
+                                  :response_format "mp3"}
+                                 {:api-key openai-key})
+        fname (str (sanitize-name (truncate text 15)) ".mp3")
+        url (util/save-and-upload-stream fname is)]
+    url))
+
 (defn link-reader [{:strs [url]}]
   (let [response (http/get url)
         html (:body response)
@@ -46,12 +75,19 @@
         {:keys [out]} (apply sh/sh readability-cli args)
         {:strs [title
                byline
-               text-content]} (json/read-str out)]
-    (str title "\n" byline "\n" text-content)))
+               text-content]} (if (= "" out)
+                                {"text-content" html}
+                                (json/read-str out))]
+    (clojure.string/join
+     "\n"
+     (eduction
+      (filter some?)
+      [title
+       byline
+       text-content]))))
 
 
-(defn sanitize-name [s]
-  (str/replace s #"[^A-Za-z0-9]" "-"))
+
 
 (defn generate-image [{:strs [prompt]}]
   (let [response (openai/create-image {:prompt prompt
@@ -70,6 +106,7 @@
     url))
 
 (def tool-fns {"generate_image" #'generate-image
+               "text_to_speech" #'text-to-speech
                "read_url_link" #'link-reader})
 
 
@@ -82,6 +119,7 @@
     (when (not tool-fn)
       (throw (Exception. (str "Unknown tool function:" name))))
     (let [output (tool-fn arguments)]
+      (prn "finished " tool-call)
       (when (not (string? output))
         (throw (ex-info "Invalid tool-fn output. Must be string."
                         {:tool-fn tool-fn
@@ -103,6 +141,7 @@
         (into []
               (map deref)
               tool-future-results)]
+    (prn "finished running all tools.")
     (openai/submit-tool-outputs-to-run
      {:thread_id thread-id
       :run_id run-id
@@ -118,6 +157,7 @@
                  (let [status (openai/retrieve-run {:thread_id thread-id
                                                     :run_id (:id run)}
                                                    {:api-key openai-key})
+                       _ (prn "waiting " thread-id (:id run) (:status status))
                        parsed-status
                        ;; fail after 10 minutes
                        (if (> i 120)
@@ -157,7 +197,7 @@
 
 
 
-(defn send-rules-response
+#_(defn send-rules-response
   [{:keys [response-url thread-ts thread-id text] :as m}]
   (when (seq (clojure.string/trim text))
     (future
@@ -323,11 +363,35 @@
       "properties"
       {"prompt" {"type" "string",
                  "description" "A prompt that describes the picture to be generated"},},
-      "required" ["prompt"]}}}])
+      "required" ["prompt"]}}}
+   {"type" "function",
+    "function"
+    {"name" "text_to_speech",
+     "description" "Generates a url to audio that speaks the given speech.",
+     "parameters"
+     {"type" "object",
+      "properties"
+      {"text" {"type" "string",
+               "description" "The speech to generate"}
+       "voice" {"type" "string",
+                "enum" ["alloy", "echo", "fable", "onyx", "nova",  "shimmer"]
+                "description" "The voice to use when generating the speech."},},
+      "required" ["text"]}}}])
 
 (comment
   (def messages
     [{:role "user" :content "Can you generate an image for a lost dog poster?"}])
+
+  (def assistant
+    (openai/modify-assistant
+     {:name "Scruffy"
+      :assistant_id assistant-id
+      :model "gpt-4-1106-preview"
+      :tools (into [{:type "code_interpreter"}
+                    {:type "retrieval"}]
+                   tools)
+      :instructions "Your a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question."}
+     {:api-key openai-key}))
 
   (def response
     (openai/create-chat-completion {:model "gpt-4"
@@ -369,3 +433,45 @@
   (openai/list-messages {:thread_id (:id thread)}
                         {:api-key openai-key})
   ,)
+
+(defonce assistant-threads (atom {}))
+
+(defn respond [ch thread-id text]
+  (try
+    (swap! assistant-threads 
+           (fn [m]
+             (if (get m thread-id)
+               m
+               (assoc m thread-id
+                      (delay 
+                        (openai/create-thread {}
+                                              {:api-key openai-key}))))))
+    
+    (let [thread @(get @assistant-threads thread-id)]
+      (openai/create-message {:thread_id (:id thread)
+                              :role "user"
+                              :content text}
+                             {:api-key openai-key})
+      (prn "created message")
+      (prn "running thread")
+      (let [result (run-thread assistant-id (:id thread))
+            _ (prn "ran thread" result)
+            response (openai/list-messages {:thread_id (:id thread)}
+                                           {:api-key openai-key})
+            msgs (:data response)]
+        (prn "listing messages" response)
+        (doseq [msg (->> msgs
+                         reverse
+                         (filter #(= "assistant" (:role %))))]
+          (let [text (->> (:content msg)
+                          (filter #(= "text" (:type %)))
+                          first)
+                id (:id msg)]
+            (async/>!! ch {:id id
+                           :text (-> text :text :value)})))
+        (async/close! ch)))
+    (catch Exception e
+      (clojure.pprint/pprint e)
+      (async/>!! ch {:id (gensym)
+                     :text "Error!"}))))
+
