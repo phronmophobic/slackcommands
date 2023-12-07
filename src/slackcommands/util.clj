@@ -51,6 +51,21 @@
                f))
     f))
 
+(defn stream->file [fname is]
+  (let [f (io/file aimage-dir fname)]
+    (with-open [is (io/input-stream is)]
+      (io/copy is
+               f))
+    f))
+
+(defn save-and-upload-stream [fname is]
+  (let [f (io/file aimage-dir fname)]
+    (with-open [is (io/input-stream is)]
+      (io/copy is
+               f))
+    (upload-file f)
+    (str "https://" "aimages.smith.rocks/" fname)))
+
 (defn save-large-png [url]
   (binding [skia/*image-cache* (atom {})]
     (let [view (ui/image (io/as-url url))

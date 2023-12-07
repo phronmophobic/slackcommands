@@ -2,6 +2,7 @@
   (:require [wkok.openai-clojure.api :as openai]
             [clojure.java.shell :as sh]
             [clojure.edn :as edn]
+            [com.phronemophobic.discord.api :as discord]
             [clojure.core.async :as async]
             [clj-http.client :as http]
             [clojure.data.json :as json]
@@ -63,47 +64,89 @@
         url (util/save-and-upload-stream fname is)]
     url))
 
+(comment
+  (def myresult
+(let [response (http/get "https://www.allrecipes.com/gingerbear-thumbprint-cookies-recipe-8386095")
+         html (:body response)
+         readability-cli (.getCanonicalPath
+                          (io/file ".."
+                                   "readability/node_modules/.bin/readable"))
+         args ["--json"
+               "-"
+               :in (.getBytes html "utf-8")]
+         {:keys [out]} (apply sh/sh readability-cli args)]
+  (json/read-str out)
+     ))
+  ,)
+
 (defn link-reader [{:strs [url]}]
-  (let [response (http/get url)
-        html (:body response)
-        readability-cli (.getCanonicalPath
-                         (io/file ".."
-                                  "readability/node_modules/.bin/readable"))
-        args ["--json"
-              "-"
-              :in (.getBytes html "utf-8")]
-        {:keys [out]} (apply sh/sh readability-cli args)
-        {:strs [title
-               byline
-               text-content]} (if (= "" out)
-                                {"text-content" html}
-                                (json/read-str out))]
-    (clojure.string/join
-     "\n"
-     (eduction
-      (filter some?)
-      [title
-       byline
-       text-content]))))
+  (let [response (http/get url
+                           {:as :stream})]
+    (case (get-in response [:headers "Content-Type"])
+      "application/pdf"
+      (let [f (util/stream->file (str (random-uuid) ".pdf")
+                                 (:body response))
+            aifile (openai/create-file 
+                    {:purpose "assistants"
+                     :file f}
+                    {:api-key openai-key})
+            assistant-file (openai/create-assistant-file 
+                            {:assistant_id assistant-id
+                             :file_id (:id aifile)}
+                            {:api-key openai-key})]
+        (:id aifile))
+
+      ;; else assume htmlish
+      (let [html (slurp (:body response)
+                        :encoding "utf-8")
+            readability-cli (.getCanonicalPath
+                             (io/file ".."
+                                      "readability/node_modules/.bin/readable"))
+            args ["--json"
+                  "-"
+                  :in (.getBytes html "utf-8")]
+            {:keys [out]} (apply sh/sh readability-cli args)
+            {:strs [title
+                    byline
+                    text-content]} (if (= "" out)
+                                     {"text-content" html}
+                                     (json/read-str out))]
+        (clojure.string/join
+         "\n"
+         (eduction
+          (filter some?)
+          [title
+           (str "By " byline)
+           text-content]))))))
 
 
 
 
-(defn generate-image [{:strs [prompt]}]
-  (let [response (openai/create-image {:prompt prompt
-                                       :n 1
-                                       :model "dall-e-3"
-                                       :size
-                                       ;; "256x256"
-                                       ;; "512x512"
-                                       "1024x1024"
-                                       }
-                                      {:api-key openai-key})
-        url (->> (:data response)
-                 first
-                 :url
-                 (util/save-large-png))]
-    url))
+(defn generate-image [{:strs [prompt
+                              using]}]
+  (case using
+    "dalle"
+    (let [response (openai/create-image {:prompt prompt
+                                         :n 1
+                                         :model "dall-e-3"
+                                         :size
+                                         ;; "256x256"
+                                         ;; "512x512"
+                                         "1024x1024"
+                                         }
+                                        {:api-key openai-key})
+          url (->> (:data response)
+                   first
+                   :url
+                   (util/save-large-png))]
+      url)
+
+    ;; else
+    (let [response (discord/create-image prompt)]
+      (if-let [url (:url response)]
+        (let [img-url (first (util/split-large-png url))]
+          img-url)
+        (throw (ex-info "Error" response))))))
 
 (def tool-fns {"generate_image" #'generate-image
                "text_to_speech" #'text-to-speech
@@ -362,7 +405,10 @@
      {"type" "object",
       "properties"
       {"prompt" {"type" "string",
-                 "description" "A prompt that describes the picture to be generated"},},
+                 "description" "A prompt that describes the picture to be generated"}
+       "using" {"type" "string",
+                "enum" ["dalle", "midjourney"]
+                "description" "The service to use when generating an image."},},
       "required" ["prompt"]}}}
    {"type" "function",
     "function"
