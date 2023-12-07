@@ -125,7 +125,8 @@
 (defn generate-image [{:strs [prompt
                               using
                               urls]}]
-  (let [prompt (if (seq urls)
+  (let [prompt (if (and (seq urls)
+                        (= "dalle" using))
                  (str (str/join " " urls) " "
                       prompt)
                  prompt)]
