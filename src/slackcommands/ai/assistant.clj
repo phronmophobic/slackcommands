@@ -197,9 +197,13 @@
                                {:api-key openai-key})
         status (loop [i 0]
                  (Thread/sleep 5000)
+                 (prn "checking status" {:thread_id thread-id
+                                         :run_id (:id run)})
                  (let [status (openai/retrieve-run {:thread_id thread-id
                                                     :run_id (:id run)}
-                                                   {:api-key openai-key})
+                                                   {:api-key openai-key
+                                                    :request {:timeout 15000
+                                                              :connect-timeout 10000}})
                        _ (prn "waiting " thread-id (:id run) (:status status))
                        parsed-status
                        ;; fail after 10 minutes
