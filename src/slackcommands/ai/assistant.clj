@@ -123,30 +123,35 @@
 
 
 (defn generate-image [{:strs [prompt
-                              using]}]
-  (case using
-    "dalle"
-    (let [response (openai/create-image {:prompt prompt
-                                         :n 1
-                                         :model "dall-e-3"
-                                         :size
-                                         ;; "256x256"
-                                         ;; "512x512"
-                                         "1024x1024"
-                                         }
-                                        {:api-key openai-key})
-          url (->> (:data response)
-                   first
-                   :url
-                   (util/save-large-png))]
-      url)
+                              using
+                              urls]}]
+  (let [prompt (if (seq urls)
+                 (str (str/join " " urls) " "
+                      prompt)
+                 prompt)]
+    (case using
+      "dalle"
+      (let [response (openai/create-image {:prompt prompt
+                                           :n 1
+                                           :model "dall-e-3"
+                                           :size
+                                           ;; "256x256"
+                                           ;; "512x512"
+                                           "1024x1024"
+                                           }
+                                          {:api-key openai-key})
+            url (->> (:data response)
+                     first
+                     :url
+                     (util/save-large-png))]
+        url)
 
-    ;; else
-    (let [response (discord/create-image prompt)]
-      (if-let [url (:url response)]
-        (let [img-url (first (util/split-large-png url))]
-          img-url)
-        (throw (ex-info "Error" response))))))
+      ;; else
+      (let [response (discord/create-image prompt)]
+        (if-let [url (:url response)]
+          (let [img-url (first (util/split-large-png url))]
+            img-url)
+          (throw (ex-info "Error" response)))))))
 
 (def tool-fns {"generate_image" #'generate-image
                "text_to_speech" #'text-to-speech
@@ -412,7 +417,11 @@
                  "description" "A prompt that describes the picture to be generated"}
        "using" {"type" "string",
                 "enum" ["dalle", "midjourney"]
-                "description" "The service to use when generating an image."},},
+                "description" "The service to use when generating an image."}
+       "urls" {"type" "array"
+               "description" "A list of urls to base the generated image on."
+               "items" {"type" "string",
+                        "description" "The service to use when generating an image."}},},
       "required" ["prompt"]}}}
    {"type" "function",
     "function"
