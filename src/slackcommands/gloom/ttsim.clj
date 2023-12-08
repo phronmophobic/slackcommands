@@ -316,3 +316,7 @@
      :purchasable (find-deck-for-snap game
                                       items-mat
                                       purchasable-snap)}))
+(comment
+  (def my-game (default-game))
+  
+,)
