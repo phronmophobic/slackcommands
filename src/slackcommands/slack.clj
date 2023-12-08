@@ -66,24 +66,26 @@
                                ":thonking:"
                                {"thread_ts" thread-id})]
         (loop [first? true]
-          (when-let [{:keys [id text] :as msg} (async/<!! ch)]
-            (when (:ts placeholder-message)
+          (let [{:keys [id text] :as msg} (async/<!! ch)]
+            (when (and first?
+                       (:ts placeholder-message))
               (chat/delete conn
                            (:ts placeholder-message)
                            channel))
             (prn "got msg" msg)
-            (let [[old _] (swap-vals! sent-msg-ids conj id)]
-              (when (not (contains? old id))
-                (doseq [chunk (partition-all 2999 text)
-                        :let [subresponse (apply str chunk)]]
-                  (chat/post-message conn channel
-                                     subresponse
-                                     {"thread_ts" thread-id
-                                      "blocks" (json/write-str
-                                                [{"type" "section"
-                                                  "text" {"type" "mrkdwn"
-                                                          "text" subresponse}}])})))
-              (recur false))))))
+            (when msg
+              (let [[old _] (swap-vals! sent-msg-ids conj id)]
+                (when (not (contains? old id))
+                  (doseq [chunk (partition-all 2999 text)
+                          :let [subresponse (apply str chunk)]]
+                    (chat/post-message conn channel
+                                       subresponse
+                                       {"thread_ts" thread-id
+                                        "blocks" (json/write-str
+                                                  [{"type" "section"
+                                                    "text" {"type" "mrkdwn"
+                                                            "text" subresponse}}])})))
+                (recur false)))))))
 
     {;; :body (get js "challenge")
      :headers {"Content-type" "text/plain"}
