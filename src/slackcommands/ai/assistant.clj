@@ -126,7 +126,7 @@
                               using
                               urls]}]
   (let [prompt (if (and (seq urls)
-                        (= "dalle" using))
+                        (not= "dalle" using))
                  (str (str/join " " urls) " "
                       prompt)
                  prompt)]
