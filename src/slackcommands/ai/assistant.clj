@@ -150,8 +150,12 @@
       ;; else
       (let [response (discord/create-image prompt)]
         (if-let [url (:url response)]
-          (let [img-url (first (util/split-large-png url))]
-            img-url)
+          (let [img-urls (util/split4-large-png url)]
+            (str/join "\n"
+                      (eduction
+                       (map-indexed (fn [i url]
+                                      (str i ". " url)))
+                       img-urls)))
           (throw (ex-info "Error" response)))))))
 
 (def tool-fns {"generate_image" #'generate-image
@@ -410,7 +414,7 @@
    {"type" "function",
     "function"
     {"name" "generate_image",
-     "description" "Generates an imageid given a prompt.",
+     "description" "Generates one or more images given a prompt.",
      "parameters"
      {"type" "object",
       "properties"
