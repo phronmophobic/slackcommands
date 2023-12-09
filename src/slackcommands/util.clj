@@ -3,6 +3,7 @@
             [membrane.skia :as skia]
             [amazonica.core :as amazonica]
             [amazonica.aws.s3 :as s3]
+            [clojure.string :as str]
             [membrane.ui :as ui]))
 
 (def s3-creds
@@ -43,6 +44,11 @@
        (io/copy is
                 f)))
    (str "http://" image-host ":" image-port "/aimages/" fname)))
+
+(defn url->local [url]
+  (when (and (str/starts-with? url "https://aimages.smith.rocks/" )
+            (.exists (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
+    (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
 
 (defn url->file [fname url]
   (let [f (io/file aimage-dir fname)]
@@ -166,3 +172,43 @@
                                  layout)
                 (upload-file f)))]
       (str "https://" "aimages.smith.rocks/" (.getName f)))))
+
+(defn content-type->suffix [content-type]
+  (case content-type
+    "image/png" ".png"
+    ("text/html" "text/plain") ".txt"
+    "application/json" ".json"
+    "application/pdf" ".pdf"
+    ("image/jpg" "image/jpeg") ".jpg"
+    "image/gif" ".gif"
+    "audio/mpeg" ".mpeg"
+    "audio/mp4" ".mp4"
+    "video/mp4" ".mp4"
+    "application/zip" ".zip"
+    "application/xhtml+xml" ".xml"
+    "application/javascript" ".js"
+    "application/rss+xml" ".xml"
+    "text/css" ".css"
+    "audio/x-wav" ".wav"
+    "text/csv" ".csv"
+    "image/svg+xml" ".svg"
+    "text/xml" ".xml"
+    "application/xml" ".xml"
+    "video/webm" ".webm"
+    "audio/webm" ".webm"
+    "image/webp" ".webp"
+    "image/bmp" ".bmp"
+    ;; else
+    ""))
+
+(defn audio? [mimetype]
+  (and (string? mimetype)
+       (str/starts-with? mimetype "audio/")))
+
+(defn video? [mimetype]
+  (and (string? mimetype)
+       (str/starts-with? mimetype "video/")))
+
+(defn image? [mimetype]
+  (and (string? mimetype)
+       (str/starts-with? mimetype "image/")))

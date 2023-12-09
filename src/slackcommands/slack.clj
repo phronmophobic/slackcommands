@@ -6,8 +6,10 @@
             [clj-slack.core :refer [slack-request]]
             [clj-http.client :as client]
             [slackcommands.ai.assistant :as assistant]
+            [slackcommands.util :as util]
             [clojure.core.async :as async]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.data.json :as json]
             [clojure.edn :as edn]))
 
@@ -25,7 +27,7 @@
 
 (defonce sent-msg-ids (atom #{}))
 (defn events-api [req]
-  (clojure.pprint/pprint req)
+  ;; (clojure.pprint/pprint req)
   (let [js (with-open [body (:body req)
                        rdr (io/reader body)]
              (json/read rdr))
@@ -55,10 +57,37 @@
         thread-id (if thread-ts
                     thread-ts
                     (get event "ts"))
-        ch (async/chan)]
+
+        files (get event "files")
+        attachments
+        (when (seq files)
+          (into []
+                (map
+                 (fn [f]
+                   {:mimetype (get f "mimetype")
+                    :id (get f "id")
+                    :url (delay
+                           (let [url (get f "url_private")
+                                 response (client/get 
+                                           url
+                                           {:headers {"Authorization" (str "Bearer " slack-oauth-token)}
+                                            :as :stream})
+                                 fname (str (random-uuid) (util/content-type->suffix (get f "mimetype")))
+                                 _ (prn (get f "mimetype") fname fname)
+                                 public-url (util/save-and-upload-stream fname (:body response))]
+                             public-url))}))
+                files))
+
+        ch (async/chan)
+        audio-prompt? (and (empty? (str/trim text))
+                           (some #(util/audio? (:mimetype %)) attachments))
+        text (if audio-prompt?
+               "Transcribe the attached audio and follow the instructions."
+               text)]
+    ;; (clojure.pprint/pprint js)
     (async/thread
       (prn "responding to" ch thread-id text)
-      (assistant/respond ch thread-id text))
+      (assistant/respond ch thread-id text attachments))
     (async/thread
       (let [placeholder-message
             (chat/post-message conn
