@@ -5,7 +5,7 @@
             [org.httpkit.server :as server]
             [ring.util.response :as response]
             slackcommands.util
-            slackcommands.slack
+            slackcommands.slack.events
             [ring.middleware.resource :refer [wrap-resource]]
             [ring.middleware.params]
             [clojure.core.memoize :as memo]
@@ -740,7 +740,7 @@
      slackcommands.slack/oauth-redirect)
 
    (ANY "/slack/events" []
-     slackcommands.slack/events-api)
+     slackcommands.slack.events/events-api)
 
 
    (ANY "/terminator-chat" []

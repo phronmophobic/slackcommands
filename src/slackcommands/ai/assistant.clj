@@ -9,6 +9,7 @@
             [clojure.data.json :as json]
             [com.phronemophobic.discord.api :as discord]
             [slackcommands.util :as util]
+            [slackcommands.slack :as slack]
             [clojure.java.io :as io]
             [clj-http.client :as client]
             [clojure.string :as str])
@@ -210,10 +211,12 @@
 
 
 (defn list-attachments [thread-id {:strs [type]}]
-  (let [pred (case type
-               "audio" util/audio?
-               "video" util/video?
-               "image" util/image?)
+  (let [pred (if type
+               (case type
+                 "audio" util/audio?
+                 "video" util/video?
+                 "image" util/image?)
+               (constantly true))
         urls
         (->> (get @thread-attachments thread-id)
              vals
@@ -224,12 +227,17 @@
       (str/join "\n" urls)
       "No matching attachments.")))
 
+(defn send-to-main [thread-id {:strs [markdown]}]
+  (slack/send-to-main markdown)
+  "Message sent!")
+
 
 (def tool-fns {"generate_image" #'generate-image
                "text_to_speech" #'text-to-speech
                "transcribe" #'transcribe
                "list_attachments" #'list-attachments
-               "read_url_link" #'link-reader})
+               "read_url_link" #'link-reader
+               "send_to_main" #'send-to-main})
 
 
 (defn run-tool* [thread-id 
@@ -500,8 +508,19 @@
       "properties"
       {"type" {"type" "string",
               "enum" ["audio", "video", "image"]
-              "description" "The type of the attachment."},},
-      "required" ["type"]}}}
+              "description" "The type of the attachment."},},}}}
+
+   {"type" "function",
+    "function"
+    {"name" "send_to_main",
+     "description" "Sends a markdown message to the main slack channel.",
+     "parameters"
+     {"type" "object",
+      "required" ["markdown"]
+      "properties"
+      {"markdown" {"type" "string",
+                   "description" "The markdown formatted message to send to the main slack channel."}}}}}
+   
    {"type" "function",
     "function"
     {"name" "generate_image",
