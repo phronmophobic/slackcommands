@@ -9,6 +9,11 @@
             [slackcommands.slack :as slack]
             [clojure.data.json :as json]))
 
+(defn strip-prefix [prompt]
+  (-> prompt 
+      (str/replace #"^@U01729B7HC5[ ]*" "")
+      (str/trim)) )
+
 (defonce sent-msg-ids (atom #{}))
 (defn events-api [req]
   ;; (clojure.pprint/pprint req)
@@ -19,24 +24,7 @@
         thread-ts (get event "thread_ts")
         
         channel (get event "channel")
-        text (-> event
-                 (get "blocks")
-                 first
-                 (get "elements")
-                 (->>
-                  (tree-seq 
-                   (fn [o]
-                     (or (vector? o)
-                         (map? o)))
-                   (fn [o]
-                     (cond
-                       (vector? o) (seq o)
-                       (map? o) (seq (get o "elements"))))))
-                 (->> (filter #(#{"text" "link"} (get % "type")))
-                      (map (fn [m]
-                             (or (get m "url")
-                                 (get m "text")))))
-                 clojure.string/join)
+        text (slack/blocks->text (get event "blocks"))
 
         thread-id (if thread-ts
                     thread-ts
@@ -63,7 +51,8 @@
                 files))
 
         ch (async/chan)
-        audio-prompt? (and (empty? (str/trim text))
+        text (strip-prefix text)
+        audio-prompt? (and (empty? text)
                            (some #(util/audio? (:mimetype %)) attachments))
         text (if audio-prompt?
                "Transcribe the attached audio and follow the instructions."

@@ -1,8 +1,11 @@
 (ns slackcommands.slack
   (:require [clj-slack.core :refer [slack-request]]
             [clj-slack.conversations :as conversations]
+            [clj-slack.files :as files]
+            [clojure.java.io :as io]
             [clj-slack.chat :as chat]
             [clojure.data.json :as json]
+            [clojure.string :as str]
             [clojure.edn :as edn]))
 
 (def slack-oauth-token
@@ -12,21 +15,89 @@
 (def conn 
   {:api-url "https://slack.com/api" :token slack-oauth-token})
 
+(defmulti block->text #(get % "type"))
+(defmethod block->text "rich_text" [block]
+  (str/join
+   (eduction
+    (map block->text)
+    (get block "elements"))))
+
+(defmethod block->text "rich_text_section" [block]
+  (str/join
+   (eduction
+    (map block->text)
+    (get block "elements"))))
+
+(defmethod block->text "user" [block]
+  (str "@" (get block "user_id")))
+
+(def slack-message-regex
+  #"https://realmonsters.slack.com/archives/([^/]+)/p([0-9]{10})([0-9]+)")
+(defmethod block->text "link" [block]
+  (let [url (get block "url")]
+    (if-let [[url channel-id ts1 ts2] (re-matches slack-message-regex url)]
+      (str "thread-" channel-id "-" ts1 "." ts2 )
+      (get block "url"))))
+
+(defmethod block->text "text" [block]
+  (get block "text"))
+
+(defmethod block->text nil [block]
+  (prn block)
+  "")
+
+(defmethod block->text "mrkdwn" [block]
+  (get block "text"))
+
+(defmethod block->text "section" [block]
+  (block->text (get block "text")))
+
+(defmethod block->text "input" [block]
+  "")
+
+(defmethod block->text "emoji" [block]
+  (str ":"(get block "name") ":"))
+
+(defn blocks->text [blocks]
+  (str/join
+   "\n"
+   (eduction
+    (map block->text)
+    blocks)))
+
+
+
+(defn retrieve-thread [channel-id thread-id]
+  (let [replies (conversations/replies (assoc conn
+                                              :key-fn identity)
+                                       channel-id
+                                       thread-id)]
+    (when (get replies "ok")
+      (str/join
+       "\n---------------\n"
+       (eduction
+        (map (fn [msg]
+               (str "@" (get msg "user") ": \n"
+                    (blocks->text (get msg "blocks")))))
+        (get replies "messages"))))))
+
 (defn message-update [connection channel-id timestamp opts]
   (slack-request connection "chat.update" 
                  (merge {"ts" timestamp "channel" channel-id}
                         opts)))
 
+(defn get-channel-id [channel-name]
+  (->> (conversations/list conn 
+                           {"types" "public_channel"})
+       :channels
+       (filter #(= channel-name
+                   (:name %)))
+       first
+       :id))
+
 (def main-channel-id
   (delay
-    (->> (conversations/list conn 
-                             {"types" "public_channel"})
-         :channels
-         (filter #(= "shaitposting"
-                     (:name %)))
-         first
-         :id
-         )))
+    (get-channel-id "shaitposting")))
 
 (defn send-to-main [mdown]
   (chat/post-message
@@ -37,6 +108,28 @@
               [{"type" "section"
                 "text" {"type" "mrkdwn"
                         "text" mdown}}])}))
+
+
+(def test-channel-id
+  (delay (get-channel-id "test")))
+
+(defn send-to-test [mdown]
+  (chat/post-message
+   conn
+   @test-channel-id
+   mdown
+   {"blocks" (json/write-str
+              [{"type" "section"
+                "text" {"type" "mrkdwn"
+                        "text" mdown}}])}))
+
+(defn read-thread [channel-id thread-id]
+  (str/join
+   (eduction
+    
+    (:messages
+     (conversations/replies conn channel-id thread-id))))
+  )
 
 (comment
   (conversations/list conn 
