@@ -630,6 +630,9 @@
   ,)
 
 (defonce assistant-threads (atom {}))
+(comment
+  (reset! assistant-threads {})
+  ,)
 
 (defonce running? (atom true))
 (defn new-thread []
