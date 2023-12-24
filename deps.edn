@@ -1,7 +1,11 @@
 {:deps {
         org.clojure/clojure {:mvn/version "1.12.0-alpha5"}
         clj-http/clj-http {:mvn/version "3.10.1"}
-        org.julienxx/clj-slack {:mvn/version "0.8.3"}
+        org.julienxx/clj-slack {;; :mvn/version "0.8.3"
+                                ;; :local/root "../clj-slack"
+                                :git/url "https://github.com/phronmophobic/clj-slack"
+                                :git/sha "b8ced2fff28bf0ca75491707cf7efbcc11be9d67"
+                                }
 
         http-kit/http-kit {:mvn/version
                            ;;"2.6.0"
