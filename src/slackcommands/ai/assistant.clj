@@ -228,8 +228,16 @@
       "No matching attachments.")))
 
 (defn send-to-main [thread-id {:strs [markdown]}]
-  (slack/send-to-main markdown)
-  "Message sent!")
+  ;; (slack/send-to-main markdown)
+  "Your send to main privileges have been revoked!")
+
+
+(defn retrieve-thread [_thread-id {:strs [thread_id]}]
+  (let [[_ channel-id thread-id] (str/split thread_id #"-")]
+    (prn channel-id thread-id)
+    (if-let [s (slack/retrieve-thread channel-id thread-id)]
+      (str "Below is a transcript of the thread:\n\n" s)
+      "No thread found for that thread id.")))
 
 
 (def tool-fns {"generate_image" #'generate-image
@@ -237,7 +245,8 @@
                "transcribe" #'transcribe
                "list_attachments" #'list-attachments
                "read_url_link" #'link-reader
-               "send_to_main" #'send-to-main})
+               "send_to_main" #'send-to-main
+               "retrieve_thread" #'retrieve-thread})
 
 
 (defn run-tool* [thread-id 
@@ -510,7 +519,7 @@
               "enum" ["audio", "video", "image"]
               "description" "The type of the attachment."},},}}}
 
-   {"type" "function",
+   #_{"type" "function",
     "function"
     {"name" "send_to_main",
      "description" "Sends a markdown message to the main slack channel.",
@@ -520,6 +529,18 @@
       "properties"
       {"markdown" {"type" "string",
                    "description" "The markdown formatted message to send to the main slack channel."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "retrieve_thread",
+     "description" "Returns the transcript for the thread with the given thread id.",
+     "parameters"
+     {"type" "object",
+      "required" ["thread_id"]
+      "properties"
+      {"thread_id" {"type" "string",
+                    "pattern" "^thread-[^-]+-[^-]+$"
+                    "description" "A thread id."}}}}}
    
    {"type" "function",
     "function"
