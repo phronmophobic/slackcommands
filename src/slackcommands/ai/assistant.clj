@@ -195,7 +195,7 @@
             url (->> (:data response)
                      first
                      :url
-                     (util/save-large-png))]
+                     (util/save-and-upload-large-png))]
         url)
 
       ;; else
