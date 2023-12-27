@@ -7,6 +7,9 @@
                                 :git/sha "b8ced2fff28bf0ca75491707cf7efbcc11be9d67"
                                 }
 
+        ;; https://github.com/ianbarber/clj-gapi
+        com.google.cloud/google-cloud-vision {:mvn/versionS "3.30.0"}
+
         http-kit/http-kit {:mvn/version
                            ;;"2.6.0"
                            "2.7.0-beta2"

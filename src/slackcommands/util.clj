@@ -157,6 +157,16 @@
             [tl tr bl br]))))
 
 
+(defn save-and-upload-view [view-fn]
+  (binding [skia/*image-cache* (atom {})]
+    (let [view (view-fn)
+          fname (str (random-uuid) ".jpg")
+          f (io/file aimage-dir fname)]
+      (skia/save-image (.getAbsolutePath f)
+                       view)
+      (upload-file f)
+      (str "https://" "aimages.smith.rocks/" fname))))
+
 (defn building-image [urls]
   (binding [skia/*image-cache* (atom {})]
     (let [f (io/file aimage-dir (str "buildings-"

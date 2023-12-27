@@ -10,6 +10,7 @@
             [com.phronemophobic.discord.api :as discord]
             [slackcommands.util :as util]
             [slackcommands.slack :as slack]
+            [slackcommands.ai.vision :as vision]
             [clojure.java.io :as io]
             [clj-http.client :as client]
             [clojure.string :as str])
@@ -239,6 +240,27 @@
       (str "Below is a transcript of the thread:\n\n" s)
       "No thread found for that thread id.")))
 
+(defn examine-image [_thread-id {:strs [url]}]
+  (let [objs (vision/find-objects url)]
+    (if (seq objs)
+      (let [img-url (util/save-and-upload-view
+                     #(vision/highlight-objects url objs))]
+        (str
+         "Image URL: " img-url "\n\n"
+         (with-out-str
+           (clojure.pprint/print-table
+            ["name" "score" "id"]
+            (eduction
+             (map (fn [{:keys [name score mid]}]
+                    {"name" name
+                     "score" score
+                     "id" mid}))
+             objs)))))
+      "No objects found.")))
+
+(comment
+  (println (examine-image nil {"url" "https://pbs.twimg.com/media/GCRbq26WMAANhkP?format=jpg&name=medium"}))
+  ,)
 
 (def tool-fns {"generate_image" #'generate-image
                "text_to_speech" #'text-to-speech
@@ -246,6 +268,7 @@
                "list_attachments" #'list-attachments
                "read_url_link" #'link-reader
                "send_to_main" #'send-to-main
+               "examine_image" #'examine-image
                "retrieve_thread" #'retrieve-thread})
 
 
@@ -541,6 +564,17 @@
       {"thread_id" {"type" "string",
                     "pattern" "^thread-[^-]+-[^-]+$"
                     "description" "A thread id."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "examine_image",
+     "description" "Returns an image with the found objects and a table with the name, score, and id for each object found.",
+     "parameters"
+     {"type" "object",
+      "required" ["url"]
+      "properties"
+      {"url" {"type" "string",
+              "description" "A url to an image to examine and find objects."}}}}}
    
    {"type" "function",
     "function"
