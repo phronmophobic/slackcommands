@@ -8,7 +8,7 @@
                                 }
 
         ;; https://github.com/ianbarber/clj-gapi
-        com.google.cloud/google-cloud-vision {:mvn/versionS "3.30.0"}
+        com.google.cloud/google-cloud-vision {:mvn/version "3.30.0"}
 
         http-kit/http-kit {:mvn/version
                            ;;"2.6.0"
