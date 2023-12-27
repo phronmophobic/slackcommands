@@ -543,6 +543,7 @@ See <https://docs.midjourney.com/docs/models> for more options.
   (-> text
       (str/replace #"—" "--")
       (str/replace #"[\n\r]+" " ")
+      (str/replace #"--v 6" "--v 6.0")
       (str/trim)))
 
 (defonce resize-image-executor
