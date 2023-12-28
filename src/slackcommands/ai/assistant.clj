@@ -258,6 +258,14 @@
              objs)))))
       "No objects found.")))
 
+(defn extract-text [_thread-id {:strs [url]}]
+  (let [text (vision/extract-text url)]
+    (if (seq text)
+      (if (str/includes? text "\"")
+        (str "The extracted text:\n" text)
+        (str "The extracted text is \"" text "\"."))
+      "No text found.")))
+
 (comment
   (println (examine-image nil {"url" "https://pbs.twimg.com/media/GCRbq26WMAANhkP?format=jpg&name=medium"}))
   ,)
@@ -269,6 +277,7 @@
                "read_url_link" #'link-reader
                "send_to_main" #'send-to-main
                "examine_image" #'examine-image
+               "extract_text" #'extract-text
                "retrieve_thread" #'retrieve-thread})
 
 
@@ -575,6 +584,17 @@
       "properties"
       {"url" {"type" "string",
               "description" "A url to an image to examine and find objects."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "extract_text",
+     "description" "Runs OCR on the provided url and extracts any text that can be found.",
+     "parameters"
+     {"type" "object",
+      "required" ["url"]
+      "properties"
+      {"url" {"type" "string",
+              "description" "A url to an image to extract text from."}}}}}
    
    {"type" "function",
     "function"
