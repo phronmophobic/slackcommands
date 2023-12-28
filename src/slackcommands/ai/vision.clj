@@ -372,6 +372,58 @@
       )
      )))
 
+(defn obj->mask [[w h] {:keys [bounding-poly]}]
+  (let [minx (apply min (map :x bounding-poly))
+        miny (apply min (map :y bounding-poly))
+        maxx (apply max (map :x bounding-poly))
+        maxy (apply max (map :y bounding-poly))]
+    (ui/translate
+     (* w minx) (* h miny) 
+     (ui/filled-rectangle
+      [1 1 1 ]
+      (* w (- maxx minx))
+      (* h (- maxy miny)))
+     )
+    )
+  
+  )
+
+
+(defn obj->mask2 [[w h] {:keys [bounding-poly]}]
+  (let [minx (apply min (map :x bounding-poly))
+        miny (apply min (map :y bounding-poly))
+        maxx (apply max (map :x bounding-poly))
+        maxy (apply max (map :y bounding-poly))]
+    [(ui/translate
+      0 0
+      (ui/filled-rectangle
+       [1 1 1]
+       (* w minx)
+       h))
+     (ui/translate
+      0 0
+      (ui/filled-rectangle
+       [1 1 1]
+       w
+       (* h miny)))
+     (ui/translate
+      (* w maxx) 0
+      (ui/filled-rectangle
+       [1 1 1]
+       (- w (* w maxx))
+       h))
+     (ui/translate
+      0 (* h maxy)
+      (ui/filled-rectangle
+       [1 1 1]
+       w
+       (- h (* h maxy))
+       )
+      )]
+    )
+  
+  )
+
 (comment
   (clojure.pprint/pprint
    (extract-text "https://pbs.twimg.com/media/GCOTFCWXsAAvZx0?format=jpg&name=medium"))
@@ -395,7 +447,71 @@
       ))
 
 
+  (def url "https://preview.redd.it/klo7lzrrjv8c1.jpeg?width=640&crop=smart&auto=webp&s=507b1c40590b40794ee3be3b1aa6365a65ab6bd5")
+
+  (def original-img (ui/image (io/as-url url)))
+
+  (def in-fname "in5.png")
+
+  (let [[ow oh] (ui/bounds original-img)
+        w 512
+        #_(- ow (mod ow 64))
+        h 512
+        #_(- oh (mod oh 64))
+        ]
+    (prn w h)
+    (skia/save-image in-fname
+                     (ui/scissor-view
+                      [0 0]
+                      [w h]
+                      original-img)
+                     [w h]))
+  (def img (ui/image in-fname))
+  
+
+  (def objs
+    (find-objects (io/as-url (io/file in-fname))))
+
+  (def cat (first objs))
+  (skia/run
+    (fn [& args]
+      [img
+       (obj->mask (ui/bounds img) cat)]))
+  (skia/save-image "out.png"
+                   [#_(ui/filled-rectangle
+                     [0 0 0]
+                     (ui/width img)
+                     (ui/height img))
+                    (obj->mask2 (ui/bounds img) cat)]
+                    (ui/bounds img)
+                    nil
+                    100
+                    false)
+
+  (require '[slackcommands.stability :as stability])
+
+  (def result
+    (stability/edit-image
+     (io/file in-fname)
+     (io/file "out.png")
+     "A monkey"))
 
 
+  (require '[wkok.openai-clojure.api :as api])
+
+  (def response
+    (api/create-image-edit
+     { ;; :model "dall-e-2"
+      :prompt "flowers"
+      :n 4
+      :image (io/file in-fname)
+      :mask (io/file "out.png")}
+     {:api-key slackcommands.ai/api-key}))
+
+  (require '[clojure.java.shell :as sh])
+  (doseq [{:keys [url]} (:data response)]
+    (sh/sh "open" url))
+
+  
   
   ,)

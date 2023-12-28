@@ -196,7 +196,18 @@
 (def list-engines-endpoint "/v1/engines/list")
 (def generation-endpoint "/v1/" )
 
-(def engine "stable-diffusion-512-v2-1")
+(def engine
+  ;; "stable-diffusion-512-v2-1"
+  ;; "stable-diffusion-xl-1024-v1-0"
+  "stable-diffusion-xl-beta-v2-2-2"
+  )
+
+(defn list-engines []
+  (let [response (client/get (str base-api-url list-engines-endpoint)
+                             {:headers {"Content-type" "application/json"
+                                        "Authorization" (str "Bearer " api-key)}
+                              :as :json})]
+    (:body response)))
 
 (defn create-image [prompt]
   (let [generation-opts (if (string? prompt)
@@ -262,7 +273,7 @@ Example:
                          {:name "init_image" :content is}
                          {:name "mask_image" :content mask-is}
                          {:name "mask_source" :content "MASK_IMAGE_WHITE"}
-                         {:name "style_preset" :content "anime"}
+                         ;;{:name "style_preset" :content "anime"}
                          #_{:name "image_strength" :content (str 0.85)}]}))
         payload (json/read-str (:body response))
         response-id (str (random-uuid))
