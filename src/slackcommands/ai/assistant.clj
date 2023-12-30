@@ -594,6 +594,7 @@
       "required" ["url"]
       "properties"
       {"url" {"type" "string",
+              "pattern" "^http.*"
               "description" "A url to an image to extract text from."}}}}}
    
    {"type" "function",
