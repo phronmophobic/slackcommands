@@ -258,6 +258,22 @@
              objs)))))
       "No objects found.")))
 
+(defn label-image [_thread-id {:strs [url]}]
+  (let [labels (vision/label-image url)]
+    (if (seq labels)
+      (str
+       "Please find the labels below:\n"
+       (with-out-str
+         (clojure.pprint/print-table
+          ["description" "score" "topicality"]
+          (eduction
+           (map (fn [{:keys [description score topicality]}]
+                  {"description" description
+                   "score" score
+                   "topicality" topicality}))
+           labels))))
+      "No labels found.")))
+
 (defn extract-text [_thread-id {:strs [url]}]
   (let [text (vision/extract-text url)]
     (if (seq text)
@@ -277,6 +293,7 @@
                "read_url_link" #'link-reader
                "send_to_main" #'send-to-main
                "examine_image" #'examine-image
+               "label_image" #'label-image
                "extract_text" #'extract-text
                "retrieve_thread" #'retrieve-thread})
 
@@ -584,6 +601,17 @@
       "properties"
       {"url" {"type" "string",
               "description" "A url to an image to examine and find objects."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "label_image",
+     "description" "Returns a table of labels that might be associated with the image at `url`.",
+     "parameters"
+     {"type" "object",
+      "required" ["url"]
+      "properties"
+      {"url" {"type" "string",
+              "description" "A url to an image find labels for."}}}}}
 
    {"type" "function",
     "function"
