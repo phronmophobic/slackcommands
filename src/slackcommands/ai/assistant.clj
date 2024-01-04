@@ -216,7 +216,8 @@
                (case type
                  "audio" util/audio?
                  "video" util/video?
-                 "image" util/image?)
+                 "image" util/image?
+                 "plaintext" util/plaintext?)
                (constantly true))
         urls
         (->> (get @thread-attachments thread-id)
@@ -565,7 +566,7 @@
      {"type" "object",
       "properties"
       {"type" {"type" "string",
-              "enum" ["audio", "video", "image"]
+              "enum" ["audio", "video", "image", "plaintext"]
               "description" "The type of the attachment."},},}}}
 
    #_{"type" "function",

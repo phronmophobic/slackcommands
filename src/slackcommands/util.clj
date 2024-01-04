@@ -222,3 +222,6 @@
 (defn image? [mimetype]
   (and (string? mimetype)
        (str/starts-with? mimetype "image/")))
+
+(defn plaintext? [mimetype]
+  (= mimetype "text/plain"))
