@@ -338,7 +338,7 @@
       :tool_outputs tool-outputs}
      {:api-key openai-key})))
 
-(defn run-thread [assistant-id thread-id]
+(defn run-thread [assistant-id thread-id status-ch]
   (let [run (openai/create-run {:thread_id thread-id
                                 :assistant_id assistant-id}
                                {:api-key openai-key})
@@ -352,6 +352,7 @@
                                                     :request {:timeout 15000
                                                               :connect-timeout 10000}})
                        _ (prn "waiting " thread-id (:id run) (:status status))
+                       _ (async/put! status-ch "waiting for thread to complete...")
                        parsed-status
                        ;; fail after 10 minutes
                        (if (> i 120)
@@ -363,14 +364,24 @@
                            ("requires_action")
                            (do
                              (prn "requires action" status)
-                             (let [action (:required_action status)]
+                             (let [action (:required_action status)
+                                   tool-calls (-> action
+                                                  :submit_tool_outputs
+                                                  :tool_calls)]
                                (when (not= "submit_tool_outputs"
                                            (:type action))
                                  (throw (Exception. "unknown required action type: " (:type action))))
-                               (run-tools! thread-id (:id run)
-                                           (-> action
-                                               :submit_tool_outputs
-                                               :tool_calls))
+                               (async/put! status-ch
+                                           (str
+                                            "running tools: "
+                                            (str/join
+                                             ", "
+                                             (map (fn [tool-call]
+                                                    (str (-> tool-call
+                                                             :function
+                                                             :name)))
+                                                  tool-calls))))
+                               (run-tools! thread-id (:id run) tool-calls)
                                :waiting))
 
                            ("expired" "failed" "cancelled")
@@ -381,10 +392,14 @@
                            :waiting))]
                    (case parsed-status
                      :complete
-                     status
+                     (do
+                       (async/put! status-ch "thread run complete.")
+                       status)
                      
                      :fail
-                     (throw (Exception. "fail."))
+                     (do
+                       (async/put! status-ch "thread run fail.")
+                       (throw (Exception. "fail.")))
                      ;; else
                      (recur (inc i)))))]
     status))
@@ -732,6 +747,9 @@
                                             (if-let [req (async/poll! ch)]
                                               (recur (conj reqs req))
                                               reqs))
+                          status-ch (-> prompt-requests
+                                     last
+                                     :status-ch)
                           out-ch (-> prompt-requests
                                      last
                                      :ch)]
@@ -740,6 +758,7 @@
                         (async/close! (:ch pr)))
 
                       (prn "creating messages" prompt-requests)
+                      (async/put! status-ch "adding messages")
                       (doseq [pr prompt-requests]
                         (when (seq (:attachments pr))
                           (swap! thread-attachments
@@ -756,11 +775,13 @@
                                                  {:api-key openai-key})))
 
                       (prn "running thread")
-                      (let [result (run-thread assistant-id (:id thread))
+                      (async/put! status-ch "running thread")
+                      (let [result (run-thread assistant-id (:id thread) status-ch)
                             _ (prn "ran thread" result)
                             response (openai/list-messages {:thread_id (:id thread)}
                                                            {:api-key openai-key})
                             msgs (:data response)]
+                        (async/put! status-ch "thread run complete.")
                         (prn "listing messages")
                         (doseq [msg (->> msgs
                                          reverse
@@ -798,5 +819,21 @@
       (async/put! prompt-ch {:prompt text
                              :attachments attachments
                              :ch ch}))))
+
+(defn respond2 [{:keys [ch
+                        thread-id
+                        prompt
+                        status-ch
+                        attachments]
+                 :as m}]
+  (try
+    (swap! assistant-threads
+           (fn [m]
+             (if (get m thread-id)
+               m
+               (assoc m thread-id
+                      (new-thread)))))
+    (let [prompt-ch (get @assistant-threads thread-id)]
+      (async/put! prompt-ch m))))
 
 

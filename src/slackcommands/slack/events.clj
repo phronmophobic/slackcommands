@@ -51,6 +51,7 @@
                 files))
 
         ch (async/chan)
+        status-ch (async/chan)
         text (strip-prefix text)
         audio-prompt? (and (empty? text)
                            (some #(util/audio? (:mimetype %)) attachments))
@@ -60,17 +61,39 @@
     ;; (clojure.pprint/pprint js)
     (async/thread
       (prn "responding to" ch thread-id text)
-      (assistant/respond ch thread-id text attachments))
+      (assistant/respond2
+       {:ch ch
+        :thread-id thread-id
+        :prompt text
+        :attachments attachments
+        :status-ch status-ch}))
+
     (async/thread
       (let [placeholder-message
             (chat/post-message slack/conn
                                channel
                                ":thonking:"
                                {"thread_ts" thread-id})]
+        (when (:ts placeholder-message)
+          (async/thread
+           (loop []
+             (let [msg (async/<!! status-ch)]
+               (when msg
+                 (slack/message-update slack/conn
+                                       channel
+                                       (:ts placeholder-message)
+                                       {"blocks"
+                                        (json/write-str
+                                         [{"type" "section"
+                                           "text" {"type" "mrkdwn"
+                                                   "text" (str ":thonking: " msg)}}])})
+                 (recur))))))
+
         (loop [first? true]
           (let [{:keys [id text] :as msg} (async/<!! ch)]
             (when (and first?
                        (:ts placeholder-message))
+              (async/close! status-ch)
               (chat/delete slack/conn
                            (:ts placeholder-message)
                            channel))
