@@ -12,6 +12,7 @@
             [clj-slack.chat :as slack-chat]
             [clojure.zip :as z]
             [clojure.edn :as edn]
+            [com.phronemophobic.nubes :as nubes]
             [com.phronemophobic.discord.api :as discord])
   (:import java.util.concurrent.Executors))
 
@@ -227,8 +228,25 @@
                                   "emoji" true
                                   "text" (str ":frogsiren: :" "Unknown Error")}}])))))
 
+(defn chat-completion [ai-type messages]
+  (case ai-type
+    :naighty
+    (nubes/run-naighty messages)
+
+    ;; default
+    (let [response (api/create-chat-completion {:model
+                                                "gpt-4"
+                                                ;; "gpt-3.5-turbo"
+                                                :messages messages}
+                                               {:api-key api-key})
+          message (-> response
+                      :choices
+                      first
+                      :message)]
+      message)))
+
 (defn send-chat-response
-  [{:keys [response-url thread-ts messages text channel-id]}]
+  [{:keys [response-url thread-ts messages text channel-id ai-type]}]
   (let [messages (or messages [])]
     (when (seq (clojure.string/trim text))
       (future
@@ -247,15 +265,7 @@
                  " "
                  text)
             (let [messages (conj messages {:role "user" :content text})
-                  response (api/create-chat-completion {:model
-                                                        "gpt-4"
-                                                        ;; "gpt-3.5-turbo"
-                                                        :messages messages}
-                                                       {:api-key api-key})
-                  message (-> response
-                              :choices
-                              first
-                              :message)
+                  message (chat-completion ai-type messages)
 
                   full-response (clojure.string/join "\n\n"
                                                      (into []
@@ -279,7 +289,8 @@
                                           "type" "plain_text_input",
                                           "action_id" (make-action
                                                        [:chat-more
-                                                        (conj messages message)])
+                                                        (conj messages message)
+                                                        ai-type])
                                           },
                                "label" {
                                         "type" "plain_text",
@@ -299,17 +310,14 @@
     (send-chat-response
      {:response-url response-url
       :channel-id channel-id
+      :ai-type (:ai-type request)
       :text text})
 
     {:body (json/write-str
             {"response_type" "in_channel"
              }) 
      :headers {"Content-type" "application/json"}
-     :status 200}
-
-
-    )
-)
+     :status 200}))
 
 
 
@@ -418,7 +426,7 @@
          :status 200})
 
       :chat-more
-      (let [[_ messages] event]
+      (let [[_ messages ai-type] event]
         (if (= action "image")
           (do
             "convert to image prompt"
@@ -429,6 +437,7 @@
             {:response-url url
              :thread-ts ts
              :channel-id channel-id
+             :ai-type ai-type
              :messages messages
              :text action})
            (future

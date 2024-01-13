@@ -744,7 +744,10 @@
 
 
    (ANY "/terminator-chat" []
-        ai/chat-command)
+     ai/chat-command)
+
+   (ANY "/naighty-chat" req
+     (ai/chat-command (assoc req :ai-type :naighty)))
 
    (ANY "/frostrules" []
         gloom/frostrules-command)

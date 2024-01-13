@@ -8,6 +8,7 @@
             [clj-http.client :as http]
             [clojure.data.json :as json]
             [com.phronemophobic.discord.api :as discord]
+            [com.phronemophobic.nubes :as nubes]
             [slackcommands.util :as util]
             [slackcommands.slack :as slack]
             [slackcommands.ai.vision :as vision]
@@ -26,6 +27,9 @@
 ;;                 :mimetype mimetype}}}
 (defonce thread-attachments
   (atom {}))
+
+;; image segmentation
+;; https://huggingface.co/facebook/sam-vit-base
 
 (defn sanitize-name [s]
   (str/replace s #"[^A-Za-z0-9]" "-"))
@@ -199,6 +203,17 @@
                      (util/save-and-upload-large-png))]
         url)
 
+      "pixel-art-xl"
+      (let [paths (nubes/generate-pixel-art prompt)]
+        (str/join "\n"
+                  (eduction
+                   (map (fn [path]
+                          (util/save-and-upload-large-png 
+                           (io/file path))))
+                   (map-indexed (fn [i url]
+                                  (str i ". " url)))
+                   paths)))
+
       ;; else
       (let [response (discord/create-image prompt)]
         (if-let [url (:url response)]
@@ -283,6 +298,35 @@
         (str "The extracted text is \"" text "\"."))
       "No text found.")))
 
+(defn run-llava [thread-id {:strs [prompt image_url]}]
+  (nubes/run-llava prompt image_url))
+
+
+(defn resketch [thread-id {:strs [prompt image_url]}]
+  (let [paths (nubes/generate-sketch prompt image_url)]
+    (str "Here are the images:\n"
+         (str/join "\n"
+                   (eduction
+                    (map (fn [path]
+                           (util/save-and-upload-large-png 
+                            (io/file path))))
+                    (map-indexed (fn [i url]
+                                   (str i ". " url)))
+                    paths)))))
+
+
+(defn animate [thread-id {:strs [image_url]}]
+  (let [path (nubes/stable-video-diffusion image_url)
+        out-file (io/file "/var/tmp/animation.gif")]
+    (clj-media/write!
+     (->> (clj-media/file (.getCanonicalPath (io/file path))))
+     (.getCanonicalPath out-file))
+    (str "Here is the animation: " (util/save-and-upload-stream
+                                    (str (random-uuid) ".gif")
+                                    out-file))))
+
+
+
 (comment
   (println (examine-image nil {"url" "https://pbs.twimg.com/media/GCRbq26WMAANhkP?format=jpg&name=medium"}))
   ,)
@@ -296,6 +340,9 @@
                "examine_image" #'examine-image
                "label_image" #'label-image
                "extract_text" #'extract-text
+               "run_llava" #'run-llava
+               "resketch" #'resketch
+               "animate" #'animate
                "retrieve_thread" #'retrieve-thread})
 
 
@@ -640,6 +687,46 @@
       {"url" {"type" "string",
               "pattern" "^http.*"
               "description" "A url to an image to extract text from."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "run_llava",
+     "description" "Answers a prompt about a given image url.",
+     "parameters"
+     {"type" "object",
+      "required" ["image_url" "prompt"]
+      "properties"
+      {"image_url" {"type" "string",
+                    "pattern" "^http.*"
+                    "description" "A url to an image to reference from the prompt"}
+       "prompt" {"type" "string",
+                 "description" "A question about the provided image url."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "resketch",
+     "description" "Resketches an image guided by a prompt",
+     "parameters"
+     {"type" "object",
+      "required" ["image_url" "prompt"]
+      "properties"
+      {"image_url" {"type" "string",
+                    "pattern" "^http.*"
+                    "description" "A url to an image to reference from the prompt"}
+       "prompt" {"type" "string",
+                 "description" "A description to guide the resketch"}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "animate",
+     "description" "Animates a video from an image",
+     "parameters"
+     {"type" "object",
+      "required" ["image_url"]
+      "properties"
+      {"image_url" {"type" "string",
+                    "pattern" "^http.*"
+                    "description" "A url to an image to animate."}}}}}
    
    {"type" "function",
     "function"
@@ -651,7 +738,7 @@
       {"prompt" {"type" "string",
                  "description" "A prompt that describes the picture to be generated"}
        "using" {"type" "string",
-                "enum" ["dalle", "midjourney"]
+                "enum" ["dalle", "midjourney", "pixel-art-xl"]
                 "description" "The service to use when generating an image."}
        "urls" {"type" "array"
                "description" "A list of urls to base the generated image on."
