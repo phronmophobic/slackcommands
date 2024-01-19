@@ -274,6 +274,10 @@
              objs)))))
       "No objects found.")))
 
+(defn computer-enhance-image [_thread-id {:strs [image_url]}]
+  (let [url (nubes/enhance image_url)]
+    (str "Here is the enhanced image:" url)))
+
 (defn label-image [_thread-id {:strs [url]}]
   (let [labels (vision/label-image url)]
     (if (seq labels)
@@ -303,27 +307,36 @@
 
 
 (defn resketch [thread-id {:strs [prompt image_url]}]
-  (let [paths (nubes/generate-sketch prompt image_url)]
+  (let [urls (nubes/generate-sketch prompt image_url)]
     (str "Here are the images:\n"
          (str/join "\n"
                    (eduction
-                    (map (fn [path]
-                           (util/save-and-upload-large-png 
-                            (io/file path))))
+                    (map-indexed (fn [i url]
+                                   (str i ". " url)))
+                    urls)))))
+
+(defn generate-music [thread-id {:strs [prompt]}]
+  (let [paths (nubes/generate-music prompt)]
+    (str "Here are the music clips:\n"
+         (str/join "\n"
+                   (eduction
                     (map-indexed (fn [i url]
                                    (str i ". " url)))
                     paths)))))
 
 
-(defn animate [thread-id {:strs [image_url]}]
-  (let [path (nubes/stable-video-diffusion image_url)
-        out-file (io/file "/var/tmp/animation.gif")]
-    (clj-media/write!
-     (->> (clj-media/file (.getCanonicalPath (io/file path))))
-     (.getCanonicalPath out-file))
-    (str "Here is the animation: " (util/save-and-upload-stream
-                                    (str (random-uuid) ".gif")
-                                    out-file))))
+(defn animate [thread-id {:strs [image_urls]}]
+  (let [urls (nubes/stable-video-diffusion image_urls)]
+    (str "Here are the animations:\n"
+         (str/join "\n"
+                   (eduction
+                    (map-indexed (fn [i url]
+                                   (str i ". " url)))
+                    urls)))))
+
+(defn dimentiate [thread-id {:strs [image_url]}]
+  (let [url (nubes/dimentiate image_url)]
+    (str "Here is the polygon file: " url)))
 
 
 
@@ -331,7 +344,7 @@
   (println (examine-image nil {"url" "https://pbs.twimg.com/media/GCRbq26WMAANhkP?format=jpg&name=medium"}))
   ,)
 
-(def tool-fns {"generate_image" #'generate-image
+(def tool-fns {"generate_images" #'generate-image
                "text_to_speech" #'text-to-speech
                "transcribe" #'transcribe
                "list_attachments" #'list-attachments
@@ -340,9 +353,12 @@
                "examine_image" #'examine-image
                "label_image" #'label-image
                "extract_text" #'extract-text
+               "computer_enhance_image" #'computer-enhance-image
                "run_llava" #'run-llava
                "resketch" #'resketch
+               "generate_music" #'generate-music
                "animate" #'animate
+               "dimentiate" #'dimentiate
                "retrieve_thread" #'retrieve-thread})
 
 
@@ -704,6 +720,29 @@
 
    {"type" "function",
     "function"
+    {"name" "computer_enhance_image",
+     "description" "Enhances an image to be less blurry.",
+     "parameters"
+     {"type" "object",
+      "required" ["image_url"]
+      "properties"
+      {"image_url" {"type" "string",
+                    "pattern" "^http.*"
+                    "description" "A url to an image to enhance."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "generate_music",
+     "description" "Generates 8 short music clips from a prompt.",
+     "parameters"
+     {"type" "object",
+      "required" ["prompt"]
+      "properties"
+      {"prompt" {"type" "string",
+                 "description" "A short description used to guide the generation of the music clips."}}}}}
+
+   {"type" "function",
+    "function"
     {"name" "resketch",
      "description" "Resketches an image guided by a prompt",
      "parameters"
@@ -719,19 +758,34 @@
    {"type" "function",
     "function"
     {"name" "animate",
-     "description" "Animates a video from an image",
+     "description" "Animates one or images into videos.",
+     "parameters"
+     {"type" "object",
+      "required" ["image_urls"]
+      "properties"
+      {"image_urls" 
+       {"type" "array"
+        "description" "A list of image urls to animate."
+        "items" {"type" "string",
+                 "pattern" "^http.*"
+                 "description" "A url to an image to animate."}}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "dimentiate",
+     "description" "Creates a 3d polygon file from a 2d image url",
      "parameters"
      {"type" "object",
       "required" ["image_url"]
       "properties"
       {"image_url" {"type" "string",
                     "pattern" "^http.*"
-                    "description" "A url to an image to animate."}}}}}
+                    "description" "A url to an image to turn into a 3d polygon file."}}}}}
    
    {"type" "function",
     "function"
-    {"name" "generate_image",
-     "description" "Generates one or more images given a prompt.",
+    {"name" "generate_images",
+     "description" "Generates one or more images given a prompt. Using midjourney and pixel-art-xl generate multipe images. Using dalle will generate a single image.",
      "parameters"
      {"type" "object",
       "properties"
