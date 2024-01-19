@@ -14,6 +14,14 @@
 (def bucket "aimages-smith-rocks")
 
 (defn upload-file
+  ([fname metadata]
+   (let [f (io/file fname)
+         key (.getName f)]
+     (with-open [is (io/input-stream f)]
+       (s3/put-object bucket
+                      key
+                      is
+                      metadata))))
   ([fname]
    (let [f (io/file fname)
          key (.getName f)]
@@ -64,13 +72,18 @@
                f))
     f))
 
-(defn save-and-upload-stream [fname is]
-  (let [f (io/file aimage-dir fname)]
-    (with-open [is (io/input-stream is)]
-      (io/copy is
-               f))
-    (upload-file f)
-    (str "https://" "aimages.smith.rocks/" fname)))
+(defn save-and-upload-stream 
+  ([fname is]
+   (save-and-upload-stream fname is nil))
+  ([fname is metadata]
+   (let [f (io/file aimage-dir fname)]
+     (with-open [is (io/input-stream is)]
+       (io/copy is
+                f))
+     (if metadata
+       (upload-file f metadata)
+       (upload-file f))
+     (str "https://" "aimages.smith.rocks/" fname))))
 
 (defn save-large-png [url]
   (binding [skia/*image-cache* (atom {})]
