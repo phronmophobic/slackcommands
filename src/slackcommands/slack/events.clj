@@ -117,5 +117,11 @@
      :status 200}))
 
 
+(comment
 
+  (chat/post-message slack/conn
+                     @slack/main-channel-id
+                     "Here you go!"
+                     {"thread_ts" "..."})
+  ,)
 
