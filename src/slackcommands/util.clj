@@ -53,7 +53,9 @@
                 f)))
    (str "http://" image-host ":" image-port "/aimages/" fname)))
 
-(defn url->local [url]
+(defn url->local
+  "Returns a file from url if it's already local. nil otherwise."
+  [url]
   (when (and (str/starts-with? url "https://aimages.smith.rocks/" )
             (.exists (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
     (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
