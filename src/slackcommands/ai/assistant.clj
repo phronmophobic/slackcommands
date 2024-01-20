@@ -10,6 +10,7 @@
             [com.phronemophobic.discord.api :as discord]
             [com.phronemophobic.nubes :as nubes]
             [slackcommands.util :as util]
+            [slackcommands.gif :as gif]
             [slackcommands.slack :as slack]
             [slackcommands.ai.vision :as vision]
             [clojure.java.io :as io]
@@ -278,6 +279,23 @@
   (let [url (nubes/enhance image_url)]
     (str "Here is the enhanced image:" url)))
 
+(defn rustle-image [_thread-id {:strs [image_url emoji]
+                                :as m}]
+  (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
+              :transparent? (get m "transparent" true)}
+        image-url (if image_url
+                    image_url
+                    (let [emoji (str/replace emoji #":" "")]
+                      (some (fn [[emoji-kw emoji-url]]
+                              (when (= (name emoji-kw)
+                                       emoji)
+                                emoji-url))
+                            (slack/list-emoji))))]
+    (if image-url
+      (let [url (gif/rustle-image image-url opts)]
+        (str "Here is the rustled image:" url))
+      "An image_url or emoji must be provided.")))
+
 (defn label-image [_thread-id {:strs [url]}]
   (let [labels (vision/label-image url)]
     (if (seq labels)
@@ -352,6 +370,7 @@
                "send_to_main" #'send-to-main
                "examine_image" #'examine-image
                "label_image" #'label-image
+               "rustle_image" #'rustle-image
                "extract_text" #'extract-text
                "computer_enhance_image" #'computer-enhance-image
                "run_llava" #'run-llava
@@ -729,6 +748,27 @@
       {"image_url" {"type" "string",
                     "pattern" "^http.*"
                     "description" "A url to an image to enhance."}}}}}
+
+   {"type" "function",
+    "function"
+    {"name" "rustle_image",
+     "description" "Rustles an image.",
+     "parameters"
+     {"type" "object",
+      "properties"
+      {"image_url" {"type" "string",
+                    "pattern" "^http.*"
+                    "description" "A url to an image to rustle."}
+       "emoji" {"type" "string",
+                "pattern" "^:.*:$"
+                "description" "An emoij to rustle."}
+       "transparent" {"type" "boolean"
+                      "description" "Whether the gif should be transparent or opaque"
+                      "default" true}
+       "alpha_threshold" {"type" "integer"
+                          "description" "The threshold for whether a pixel is transparent"
+                          "minimum" 0
+                          "maximum" 255}}}}}
 
    {"type" "function",
     "function"

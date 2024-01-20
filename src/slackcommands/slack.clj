@@ -1,6 +1,7 @@
 (ns slackcommands.slack
   (:require [clj-slack.core :refer [slack-request]]
             [clj-slack.conversations :as conversations]
+            [clj-slack.emoji :as emoji]
             [clj-slack.files :as files]
             [clojure.java.io :as io]
             [clj-slack.chat :as chat]
@@ -94,6 +95,9 @@
                    (:name %)))
        first
        :id))
+
+(defn list-emoji []
+  (:emoji (emoji/list conn)))
 
 (def main-channel-id
   (delay
