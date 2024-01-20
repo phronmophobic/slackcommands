@@ -29,7 +29,7 @@
          ih (.getHeight first-frame)
 
          [w h] [50 (long
-                    (* iw
+                    (* ih
                        (/ 50 iw)))]
 
          crop? (get opts :crop? true)
