@@ -16,6 +16,8 @@
                        [50])
          [w h] (mapv long (ui/bounds img))
 
+         crop? (get opts :crop? true)
+
          max-dx (long (* rustle-pct w))
          max-dy (long (* rustle-pct h))
          rands
@@ -27,8 +29,12 @@
                      max-dy)]))
           (range fps))
 
-         gif-width (- w (* 2 max-dx))
-         gif-height (- h (* 2 max-dy))
+         gif-width (if crop?
+                     (- w (* 2 max-dx))
+                     w)
+         gif-height (if crop?
+                      (- h (* 2 max-dy))
+                      h)
          outf (io/file util/aimage-dir
                        (str (random-uuid) ".gif"))]
      (gif/save-gif!
@@ -36,7 +42,8 @@
        (fn [g [dx dy]]
          (java2d/draw-to-graphics g
                                   (ui/translate
-                                   (- dx max-dx) (- dy max-dy)
+                                   (- dx (if crop? max-dx 0))
+                                   (- dy (if crop? max-dy 0))
                                    img))
          ;; fix for weird transparency issue in ffmpeg
          ;; https://www.reddit.com/r/ffmpeg/comments/qwmh56/glitch_when_creating_transparent_animated_gifs/

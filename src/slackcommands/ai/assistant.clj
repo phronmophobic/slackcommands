@@ -282,7 +282,8 @@
 (defn rustle-image [_thread-id {:strs [image_url emoji]
                                 :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
-              :transparent? (get m "transparent" true)}
+              :transparent? (get m "transparent" true)
+              :crop? (get m "crop" true)}
         image-url (if image_url
                     image_url
                     (let [emoji (str/replace emoji #":" "")]
@@ -773,6 +774,9 @@
        "transparent" {"type" "boolean"
                       "description" "Whether the gif should be transparent or opaque"
                       "default" true}
+       "crop" {"type" "boolean"
+               "description" "Whether the gif should be cropped"
+               "default" true}
        "alpha_threshold" {"type" "integer"
                           "description" "The threshold for whether a pixel is transparent"
                           "minimum" 0
