@@ -356,6 +356,8 @@
   (let [url (nubes/dimentiate image_url)]
     (str "Here is the polygon file: " url)))
 
+(defn barf [thread-id {}]
+  (throw (Exception. "barf")))
 
 
 (comment
@@ -378,28 +380,34 @@
                "generate_music" #'generate-music
                "animate" #'animate
                "dimentiate" #'dimentiate
-               "retrieve_thread" #'retrieve-thread})
+               "retrieve_thread" #'retrieve-thread
+               "barf" #'barf})
 
 
 (defn run-tool* [thread-id 
                  {:keys [id type function]
                   :as tool-call}]
   (prn "running" tool-call)
-  (let [{:keys [name arguments]} function
-        arguments (json/read-str arguments)
-        tool-fn (get tool-fns name)]
-    (when (not tool-fn)
-      (throw (Exception. (str "Unknown tool function:" name))))
-    (let [output (tool-fn thread-id arguments)]
-      (prn "finished " tool-call)
-      (when (not (string? output))
-        (throw (ex-info "Invalid tool-fn output. Must be string."
-                        {:tool-fn tool-fn
-                         :argumnets arguments
-                         :tool-name name
-                         :output output})))
+  (try
+    (let [{:keys [name arguments]} function
+          arguments (json/read-str arguments)
+          tool-fn (get tool-fns name)]
+      (when (not tool-fn)
+        (throw (Exception. (str "Unknown tool function:" name))))
+      (let [output (tool-fn thread-id arguments)]
+        (prn "finished " tool-call)
+        (when (not (string? output))
+          (throw (ex-info "Invalid tool-fn output. Must be string."
+                          {:tool-fn tool-fn
+                           :argumnets arguments
+                           :tool-name name
+                           :output output})))
+        {:tool_call_id id
+         :output output}))
+    (catch Exception e
+      (clojure.pprint/pprint e)
       {:tool_call_id id
-       :output output})))
+       :output "An error occurred while running this tool."})))
 
 (defn run-tools! [thread-id run-id tool-calls]
   (let [tool-future-results
@@ -851,7 +859,15 @@
        "voice" {"type" "string",
                 "enum" ["alloy", "echo", "fable", "onyx", "nova",  "shimmer"]
                 "description" "The voice to use when generating the speech."},},
-      "required" ["text"]}}}])
+      "required" ["text"]}}}
+
+   #_{"type" "function",
+    "function"
+    {"name" "barf",
+     "description" "Barfs.",
+     "parameters"
+     {"type" "object",
+      "properties" {}}}}])
 
 (comment
   (def messages
@@ -924,63 +940,64 @@
           (let [loop?
                 (try
                   (if-let [prompt-request (async/<!! ch)]
-                    (let [prompt-requests (loop [reqs [prompt-request]]
-                                            (if-let [req (async/poll! ch)]
-                                              (recur (conj reqs req))
-                                              reqs))
-                          status-ch (-> prompt-requests
-                                     last
-                                     :status-ch)
-                          out-ch (-> prompt-requests
-                                     last
-                                     :ch)]
-                      ;; close channels for all but the last request
-                      (doseq [pr (butlast prompt-requests)]
-                        (async/close! (:ch pr)))
+                    (try
+                      (let [prompt-requests (loop [reqs [prompt-request]]
+                                              (if-let [req (async/poll! ch)]
+                                                (recur (conj reqs req))
+                                                reqs))
+                            status-ch (-> prompt-requests
+                                          last
+                                          :status-ch)
+                            out-ch (-> prompt-requests
+                                       last
+                                       :ch)]
+                        ;; close channels for all but the last request
+                        (doseq [pr (butlast prompt-requests)]
+                          (async/close! (:ch pr)))
 
-                      (prn "creating messages" prompt-requests)
-                      (async/put! status-ch "adding messages")
-                      (doseq [pr prompt-requests]
-                        (when (seq (:attachments pr))
-                          (swap! thread-attachments
-                                 update (:id thread)
-                                 (fn [m]
-                                   (into (or m {})
-                                         (map (fn [{:keys [id] :as attachment}]
-                                                [id attachment]))
-                                         (:attachments pr)))))
-                        (when (seq (:prompt pr))
-                          (openai/create-message {:thread_id (:id thread)
-                                                  :role "user"
-                                                  :content (:prompt pr)}
-                                                 {:api-key openai-key})))
+                        (prn "creating messages" prompt-requests)
+                        (async/put! status-ch "adding messages")
 
-                      (prn "running thread")
-                      (async/put! status-ch "running thread")
-                      (let [result (run-thread assistant-id (:id thread) status-ch)
-                            _ (prn "ran thread" result)
-                            response (openai/list-messages {:thread_id (:id thread)}
-                                                           {:api-key openai-key})
-                            msgs (:data response)]
-                        (async/put! status-ch "thread run complete.")
-                        (prn "listing messages")
-                        (doseq [msg (->> msgs
-                                         reverse
-                                         (filter #(= "assistant" (:role %))))]
-                          (let [text (->> (:content msg)
-                                          (filter #(= "text" (:type %)))
-                                          first)
-                                id (:id msg)]
-                            (async/>!! out-ch {:id id
-                                               :text (-> text :text :value)})))
-                        (async/close! out-ch))
-                      true)
+                        (doseq [pr prompt-requests]
+                          (when (seq (:attachments pr))
+                            (swap! thread-attachments
+                                   update (:id thread)
+                                   (fn [m]
+                                     (into (or m {})
+                                           (map (fn [{:keys [id] :as attachment}]
+                                                  [id attachment]))
+                                           (:attachments pr)))))
+                          (when (seq (:prompt pr))
+                            (openai/create-message {:thread_id (:id thread)
+                                                    :role "user"
+                                                    :content (:prompt pr)}
+                                                   {:api-key openai-key})))
+
+                        (prn "running thread")
+                        (async/put! status-ch "running thread")
+                        (let [result (run-thread assistant-id (:id thread) status-ch)
+                              _ (prn "ran thread" result)
+                              response (openai/list-messages {:thread_id (:id thread)}
+                                                             {:api-key openai-key})
+                              msgs (:data response)]
+                          (async/put! status-ch "thread run complete.")
+                          (prn "listing messages")
+                          (doseq [msg (->> msgs
+                                           reverse
+                                           (filter #(= "assistant" (:role %))))]
+                            (let [text (->> (:content msg)
+                                            (filter #(= "text" (:type %)))
+                                            first)
+                                  id (:id msg)]
+                              (async/>!! out-ch {:id id
+                                                 :text (-> text :text :value)})))
+                          (async/close! out-ch))
+                        true)
+                      (catch Exception e
+                        (clojure.pprint/pprint e)
+                        ;; we had an error, but we'll loop anyway.
+                        true))
                     ;; channel closed
-                    false)
-                  (catch Exception e
-                    (clojure.pprint/pprint e)
-                    (async/>!! ch {:id (gensym)
-                                   :text "Error!"})
                     false))]
             (when (and loop? @running?)
               (recur))))))

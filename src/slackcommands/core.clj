@@ -725,6 +725,12 @@
    (ANY "/midjourney" []
         ai/midjourney-image-command)
 
+   (GET "/aimages/ss.jpg"
+        []
+        (do
+          (when-let [f (requiring-resolve 'com.phronemophobic.discord.viewer/update-debug)]
+            (f))
+          (response/file-response "aimages/ss.jpg")))
 
 
    (route/files "/aimages/"
