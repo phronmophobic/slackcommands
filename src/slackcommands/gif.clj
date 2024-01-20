@@ -14,9 +14,21 @@
   ([url opts]
    (let [img (ui/image (io/as-url url)
                        [50])
-         [w h] (ui/bounds img)
-         w (long w)
-         h (long h)
+         [w h] (mapv long (ui/bounds img))
+
+         max-dx (long (* rustle-pct w))
+         max-dy (long (* rustle-pct h))
+         rands
+         (into []
+          (map (fn [_]
+                 [(- (rand-int (* 2 max-dx))
+                     max-dx)
+                  (- (rand-int (* 2 max-dy))
+                     max-dy)]))
+          (range fps))
+
+         gif-width (- w (* 2 max-dx))
+         gif-height (- h (* 2 max-dy))
          outf (io/file util/aimage-dir
                        (str (random-uuid) ".gif"))]
      (gif/save-gif!
@@ -24,16 +36,16 @@
        (fn [g [dx dy]]
          (java2d/draw-to-graphics g
                                   (ui/translate
-                                   (* w dx) (* h dy)
-                                   img)))
+                                   (- dx max-dx) (- dy max-dy)
+                                   img))
+         ;; fix for weird transparency issue in ffmpeg
+         ;; https://www.reddit.com/r/ffmpeg/comments/qwmh56/glitch_when_creating_transparent_animated_gifs/
+         (when (get opts :transparency? true)
+           (.clearRect g (dec gif-width) (dec gif-height) 1 1)))
        {:fps fps
-        :width w
-        :height h}
-       (eduction
-        (map (fn [_]
-               [(- (/ rustle-pct 2) (* rustle-pct (rand)))
-                (- (/ rustle-pct 2) (* rustle-pct (rand)))]))
-        (range fps)))
+        :width gif-width
+        :height gif-height}
+       rands)
       (.getCanonicalPath outf)
       opts)
      (util/upload-file outf)
