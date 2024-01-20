@@ -725,7 +725,7 @@
    (ANY "/midjourney" []
         ai/midjourney-image-command)
 
-   (GET "/aimages/ss.jpg"
+   #_(GET "/aimages/ss.jpg"
         []
         (do
           (when-let [f (requiring-resolve 'com.phronemophobic.discord.viewer/update-debug)]
