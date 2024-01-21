@@ -14,14 +14,12 @@
       (str/replace #"^@U01729B7HC5[ ]*" "")
       (str/trim)) )
 
+(def my-id "U01729B7HC5")
+
 (defonce sent-msg-ids (atom #{}))
-(defn events-api [req]
-  ;; (clojure.pprint/pprint req)
-  (let [js (with-open [body (:body req)
-                       rdr (io/reader body)]
-             (json/read rdr))
-        event (get js "event")
-        thread-ts (get event "thread_ts")
+
+(defn handle-event [event]
+  (let [thread-ts (get event "thread_ts")
         
         channel (get event "channel")
         text (slack/blocks->text (get event "blocks"))
@@ -76,18 +74,18 @@
                                {"thread_ts" thread-id})]
         (when (:ts placeholder-message)
           (async/thread
-           (loop []
-             (let [msg (async/<!! status-ch)]
-               (when msg
-                 (slack/message-update slack/conn
-                                       channel
-                                       (:ts placeholder-message)
-                                       {"blocks"
-                                        (json/write-str
-                                         [{"type" "section"
-                                           "text" {"type" "mrkdwn"
-                                                   "text" (str ":thonking: " msg)}}])})
-                 (recur))))))
+            (loop []
+              (let [msg (async/<!! status-ch)]
+                (when msg
+                  (slack/message-update slack/conn
+                                        channel
+                                        (:ts placeholder-message)
+                                        {"blocks"
+                                         (json/write-str
+                                          [{"type" "section"
+                                            "text" {"type" "mrkdwn"
+                                                    "text" (str ":thonking: " msg)}}])})
+                  (recur))))))
 
         (loop [first? true]
           (let [{:keys [id text] :as msg} (async/<!! ch)]
@@ -110,7 +108,33 @@
                                                   [{"type" "section"
                                                     "text" {"type" "mrkdwn"
                                                             "text" subresponse}}])})))
-                (recur false)))))))
+                (recur false)))))))))
+
+(defn events-api [req]
+  ;; (clojure.pprint/pprint req)
+  #_(let [js (with-open [body (:body req)
+                       rdr (io/reader body)]
+             (json/read rdr))]
+    {:body (get js "challenge")
+     :headers {"Content-type" "text/plain"}
+     :status 200})
+
+  (let [js (with-open [body (:body req)
+                       rdr (io/reader body)]
+             (json/read rdr))
+        event (get js "event")]
+    (if (= "app_mention"
+              (get event "type"))
+      (handle-event event)
+      ;; else
+      (let [handle? (and (not= (get event "user")
+                               my-id)
+                         (= "message" (get event "type"))
+                         (not (get event "subtype")))]
+        (prn "handle?" handle?)
+        (clojure.pprint/pprint event)
+        (when handle?
+          (handle-event event) )))
 
     {;; :body (get js "challenge")
      :headers {"Content-type" "text/plain"}
