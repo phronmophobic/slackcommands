@@ -131,8 +131,8 @@
                                my-id)
                          (= "message" (get event "type"))
                          (not (get event "subtype")))]
-        (prn "handle?" handle?)
-        (clojure.pprint/pprint event)
+        ;; (prn "handle?" handle?)
+        ;; (clojure.pprint/pprint event)
         (when handle?
           (handle-event event) )))
 
