@@ -283,7 +283,8 @@
                                 :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
               :transparent? (get m "transparent" true)
-              :crop? (get m "crop" true)}
+              :crop? (get m "crop" true)
+              :fps (get m "fps" 24)}
         image-url (if image_url
                     image_url
                     (let [emoji (str/replace emoji #":" "")]
@@ -780,7 +781,11 @@
        "alpha_threshold" {"type" "integer"
                           "description" "The threshold for whether a pixel is transparent"
                           "minimum" 0
-                          "maximum" 255}}}}}
+                          "maximum" 255}
+       "fps" {"type" "integer"
+              "description" "The number of frames per second."
+              "minimum" 1
+              "maximum" 24}}}}}
 
    {"type" "function",
     "function"

@@ -7,8 +7,9 @@
             [membrane.java2d :as java2d]
             [slackcommands.util :as util]))
 
-(def fps 24)
+
 (def rustle-pct 0.12)
+(def size 128)
 
 (defn rustle-image
   ([url]
@@ -17,6 +18,7 @@
    (let [f (or (util/url->local url)
                (util/url->file (str (random-uuid))
                                url))
+         fps (get opts :fps 24)
          frames (into []
                       (map mm/image)
                       (clj-media/frames
@@ -28,9 +30,9 @@
          iw (.getWidth first-frame)
          ih (.getHeight first-frame)
 
-         [w h] [50 (long
-                    (* ih
-                       (/ 50 iw)))]
+         [w h] [size (long
+                      (* ih
+                         (/ size iw)))]
 
          crop? (get opts :crop? true)
          max-dx (long (* rustle-pct w))
