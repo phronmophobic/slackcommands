@@ -127,10 +127,12 @@
               (get event "type"))
       (handle-event event)
       ;; else
-      (let [handle? (and (not= (get event "user")
+      (let [text (slack/blocks->text (get event "blocks"))
+            handle? (and (not= (get event "user")
                                my-id)
                          (= "message" (get event "type"))
-                         (not (get event "subtype")))]
+                         (not (get event "subtype"))
+                         (not (str/starts-with? text "/")))]
         ;; (prn "handle?" handle?)
         ;; (clojure.pprint/pprint event)
         (when handle?
