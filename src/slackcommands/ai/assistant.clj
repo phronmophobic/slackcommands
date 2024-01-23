@@ -420,7 +420,7 @@
                            :output output})))
         {:tool_call_id id
          :output output}))
-    (catch Exception e
+    (catch Throwable e
       (clojure.pprint/pprint e)
       {:tool_call_id id
        :output "An error occurred while running this tool."})))
