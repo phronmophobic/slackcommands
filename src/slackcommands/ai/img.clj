@@ -38,7 +38,7 @@
 
 
 (defschema
-  {"name" "resize",
+  {"name" "resize_image",
    "description" "Resizes the image at url given the width and height. Omitting the width or height will perform aspect rescale.",
    "parameters"
    {"type" "object",
@@ -51,7 +51,7 @@
      "url" {"type" "string",
             "pattern" "^http.*"
             "description" "A url to an image."}}}})
-(defmethod img-op* "resize" [{:strs [url width height]}]
+(defmethod img-op* "resize_image" [{:strs [url width height]}]
   (ui/image (io/as-url url)
             [width height]))
 
@@ -85,7 +85,7 @@
 ;;   }
 ;; }
 (defschema
-  {"name" "crop",
+  {"name" "crop_image",
    "description" "Crops the image at url.",
    "parameters"
    {"type" "object",
@@ -105,12 +105,12 @@
      "url" {"type" "string",
             "pattern" "^http.*"
             "description" "A url to an image."}}}})
-(defmethod img-op* "crop" [{:strs [url x y width height]}]
-  (ui/translate
-   (- (or x 0)) (- (or y 0))
-   (ui/scissor-view
-    [0 0]
-    [width height]
+(defmethod img-op* "crop_image" [{:strs [url x y width height]}]
+  (ui/scissor-view
+   [0 0]
+   [width height]
+   (ui/translate
+    (- (or x 0)) (- (or y 0))
     (ui/image (io/as-url url)))))
 
 
@@ -212,7 +212,7 @@
 ;;  }
 ;; }
 (defschema
-  {"name" "overlay",
+  {"name" "overlay_image",
    "description" "Overlays the image at overlay_url on top of the image at url.",
    "parameters"
    {"type" "object",
@@ -236,7 +236,7 @@
                     "pattern" "^http.*"
                     "description" "The url to the image to be overlaid on top."}}}})
 
-(defmethod img-op* "overlay" [{:strs [url overlay_url opacity position]}]
+(defmethod img-op* "overlay_image" [{:strs [url overlay_url opacity position]}]
   [(ui/image (io/as-url url))
    (ui/translate
     (get position "x") (get position "y")
@@ -244,7 +244,7 @@
 
 
 (defschema
-  {"name" "pad",
+  {"name" "pad_image",
    "description" "Adds extra transparent pixels on the outside of the image at url. Any omited pads will be treated as zero",
    "parameters"
    {"type" "object",
@@ -263,7 +263,7 @@
      "bottom" {"type" "integer",
             "description" "Number of pixels to add to the bottom."}}}})
 
-(defmethod img-op* "pad" [{:strs [url left top right bottom] :as m}]
+(defmethod img-op* "pad_image" [{:strs [url left top right bottom] :as m}]
   (ui/padding (get m "top" 0) (get m "right" 0) (get m "bottom" 0) (get m "left" 0) 
               (ui/image (io/as-url url))))
 
@@ -331,17 +331,35 @@
 ;; }
 
 
+(defschema
+  {"name" "measure_image",
+   "description" "Returns the dimensions of the image at url.",
+   "parameters"
+   {"type" "object",
+    "required" ["url"]
+    "properties"
+    {"url" {"type" "string",
+            "pattern" "^http.*"
+            "description" "A url to an image."}}}})
+(defn measure-image [_ {:strs [url]}]
+  (let [[w h] (ui/bounds
+               (ui/image (io/as-url url)))]
+    (str "width: " w "\n"
+         "height: " h)))
+
 (defn img-op [m]
-  (let [view (img-op* m)
-        outf (io/file util/aimage-dir
-                      (str (random-uuid) ".png"))
-        result (skia/save-image (.getCanonicalPath outf)
-                                view)]
-    (if (zero? result)
-      "There was an error saving the result."
-      (let []
-        (util/upload-file outf)
-        (str "https://" "aimages.smith.rocks/" (.getName outf))))))
+  (binding [skia/*image-cache* (atom {})]
+    (let [view (img-op* m)
+          outf (io/file util/aimage-dir
+                        (str (random-uuid) ".png"))
+          result (skia/save-image (.getCanonicalPath outf)
+                                  view
+                                  (ui/vounds view))]
+      (if (zero? result)
+        "There was an error saving the result."
+        (let []
+          (util/upload-file outf)
+          (str "https://" "aimages.smith.rocks/" (.getName outf)))))))
 
 (defn image-schemas []
   (into []
@@ -353,11 +371,12 @@
 
 
 (defn tool-fns []
-  (into {}
-        (map (fn [op]
-               [op (fn [_thread-id m]
-                     (img-op (assoc m "op" op)))]))
-        (keys @schemas)))
+  (let [fns (into {}
+                  (map (fn [op]
+                         [op (fn [_thread-id m]
+                               (img-op (assoc m "op" op)))]))
+                  (keys @schemas))]
+    (assoc fns "measure_image" #'measure-image)))
 
 (comment
 
