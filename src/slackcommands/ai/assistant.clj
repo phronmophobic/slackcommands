@@ -830,7 +830,7 @@
     {"type" "function",
      "function"
      {"name" "animate",
-      "description" "Animates one or images into videos.",
+      "description" "Animates one or images into videos at the same time.",
       "parameters"
       {"type" "object",
        "required" ["image_urls"]
