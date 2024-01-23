@@ -1,6 +1,7 @@
 (ns slackcommands.gif
   (:require [com.phronemophobic.clogif :as gif]
             [com.phronemophobic.clj-media :as clj-media]
+            [com.phronemophobic.clj-media.avfilter :as avfilter]
             [com.phronemophobic.clj-media.model :as mm]
             [membrane.ui :as ui]
             [clojure.java.io :as io]
@@ -9,7 +10,23 @@
 
 
 (def rustle-pct 0.12)
-(def size 128)
+(def size 77)
+
+(defn shrink-gif* [media opts outf]
+  (loop [max-colors 256]
+    (prn "max-colors" max-colors)
+    (when (< max-colors 3)
+      (throw (ex-info "Could not shrink gif."
+                      {})))
+    (gif/save-gif!
+     media
+     (.getCanonicalPath outf)
+     (assoc opts
+            :max-colors max-colors))
+    (if (> (.length outf)
+           125e3)
+      (recur (dec max-colors))
+      outf)))
 
 (defn rustle-image
   ([url]
@@ -70,27 +87,60 @@
           (cycle frames))
 
          outf (io/file util/aimage-dir
-                       (str (random-uuid) ".gif"))]
+                       (str (random-uuid) ".gif"))
+
+         tempf (io/file util/aimage-dir
+                        (str (random-uuid) ".gif"))
+
+         media
+         (gif/graphics->media
+          (fn [g view]
+            (java2d/draw-to-graphics g view)
+            ;; fix for weird transparency issue in ffmpeg
+            ;; https://www.reddit.com/r/ffmpeg/comments/qwmh56/glitch_when_creating_transparent_animated_gifs/
+            (when (get opts :transparency? true)
+              (.clearRect g (dec gif-width) (dec gif-height) 1 1)))
+          {:fps fps
+           :width gif-width
+           :height gif-height}
+          rustled-frames)]
      (gif/save-gif!
-      (gif/graphics->media
-       (fn [g view]
-         (java2d/draw-to-graphics g view)
-         ;; fix for weird transparency issue in ffmpeg
-         ;; https://www.reddit.com/r/ffmpeg/comments/qwmh56/glitch_when_creating_transparent_animated_gifs/
-         (when (get opts :transparency? true)
-           (.clearRect g (dec gif-width) (dec gif-height) 1 1)))
-       {:fps fps
-        :width gif-width
-        :height gif-height}
-       rustled-frames)
-      (.getCanonicalPath outf)
+      media
+      (.getCanonicalPath tempf)
       opts)
+     (shrink-gif* (clj-media/file tempf) opts outf)
      (util/upload-file outf)
      (str "https://" "aimages.smith.rocks/" (.getName outf)))))
 
+(defn shrink-gif [url]
+  (let [f (or (util/url->local url)
+               (util/url->file (str (random-uuid))
+                               url))
+        info (clj-media/probe (.getCanonicalPath f))
+        {:keys [width height]} (first (:streams info))
+
+        media (clj-media/file f)
+        media (if (or (> width size)
+                      (> height size))
+                (avfilter/scale
+                 {:width (str size)
+                  :height (str size)}
+                 media)
+                media)
+
+        outf (io/file util/aimage-dir
+                      (str (random-uuid) ".gif"))]
+    (shrink-gif*
+     media
+     {}
+     outf)
+    (util/upload-file outf)
+    (str "https://" "aimages.smith.rocks/" (.getName outf))))
 
 (comment
-  (rustle-image "https://ca.slack-edge.com/T0RB07YAF-U01729B7HC5-5f52e964f8fe-512")
-  (rustle-image "https://aimages.smith.rocks/1416d6ba-87fb-438e-abff-70e40001c86d.png")
-  
+
   ,)
+
+(defn -main [& args]
+  
+  )
