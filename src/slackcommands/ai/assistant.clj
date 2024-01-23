@@ -13,6 +13,7 @@
             [slackcommands.gif :as gif]
             [slackcommands.slack :as slack]
             [slackcommands.ai.vision :as vision]
+            [membrane.ui :as ui]
             [clojure.java.io :as io]
             [clj-http.client :as client]
             [clojure.string :as str])
@@ -261,17 +262,26 @@
   (let [objs (vision/find-objects url)]
     (if (seq objs)
       (let [img-url (util/save-and-upload-view
-                     #(vision/highlight-objects url objs))]
+                     #(vision/highlight-objects url objs))
+            [w h] (ui/bounds (ui/image (io/as-url url)))]
         (str
          "Image URL: " img-url "\n\n"
          (with-out-str
            (clojure.pprint/print-table
-            ["name" "score" "id"]
+            ["name" "score" "id" "x" "y" "width" "height"]
             (eduction
-             (map (fn [{:keys [name score mid]}]
-                    {"name" name
-                     "score" score
-                     "id" mid}))
+             (map (fn [{:keys [name score mid bounding-poly]}]
+                    (let [minx (apply min (map :x bounding-poly))
+                          maxx (apply max (map :x bounding-poly))
+                          miny (apply min (map :y bounding-poly))
+                          maxy (apply max (map :y bounding-poly))]
+                      {"name" name
+                      "score" score
+                       "x" (long (* w minx))
+                       "y" (long (* h miny))
+                       "width" (long (* w (- maxx minx)))
+                       "height" (long (* h (- maxy miny)))
+                       "id" mid})))
              objs)))))
       "No objects found.")))
 
