@@ -469,7 +469,8 @@
 
                            ("requires_action")
                            (do
-                             (prn "requires action" status)
+                             (prn "requires action" ;;status
+                                  )
                              (let [action (:required_action status)
                                    tool-calls (-> action
                                                   :submit_tool_outputs
