@@ -1020,7 +1020,8 @@
                         (prn "running thread")
                         (async/put! status-ch "running thread")
                         (let [result (run-thread assistant-id (:id thread) status-ch)
-                              _ (prn "ran thread" result)
+                              _ (prn "ran thread" ;;result
+                                     )
                               response (openai/list-messages {:thread_id (:id thread)}
                                                              {:api-key openai-key})
                               msgs (:data response)]
