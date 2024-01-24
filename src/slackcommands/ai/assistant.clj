@@ -290,6 +290,10 @@
   (let [url (nubes/enhance image_url)]
     (str "Here is the enhanced image:" url)))
 
+(defn slackify-gif [_thread-id {:strs [url]}]
+  (let [url (gif/shrink-gif url)]
+    (str "Here is the slackified gif:" url)))
+
 (defn rustle-image [_thread-id {:strs [image_url emoji]
                                 :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
@@ -396,6 +400,7 @@
     "animate" #'animate
     "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
+    "slackify_gif" #'slackify-gif
     "barf" #'barf}
    (img/tool-fns)))
 
@@ -748,6 +753,19 @@
        {"url" {"type" "string",
                "pattern" "^http.*"
                "description" "A url to an image to extract text from."}}}}}
+
+
+    {"type" "function",
+     "function"
+     {"name" "slackify_gif",
+      "description" "Shrinks and resizes and emoji suitable for a slack emoji.",
+      "parameters"
+      {"type" "object",
+       "required" ["url"]
+       "properties"
+       {"url" {"type" "string",
+               "pattern" "^http.*"
+               "description" "A url to a gif to slackify."}}}}}
 
     {"type" "function",
      "function"
