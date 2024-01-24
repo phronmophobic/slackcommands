@@ -14,7 +14,6 @@
 
 (defn shrink-gif* [media opts outf]
   (loop [max-colors 256]
-    (prn "max-colors" max-colors)
     (when (< max-colors 3)
       (throw (ex-info "Could not shrink gif."
                       {})))
