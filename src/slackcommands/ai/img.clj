@@ -353,8 +353,7 @@
           outf (io/file util/aimage-dir
                         (str (random-uuid) ".png"))
           result (skia/save-image (.getCanonicalPath outf)
-                                  view
-                                  (ui/vounds view))]
+                                  view)]
       (if (zero? result)
         "There was an error saving the result."
         (let []
