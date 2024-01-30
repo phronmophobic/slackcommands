@@ -758,6 +758,9 @@
    (ANY "/frostrules" []
         gloom/frostrules-command)
 
+   (ANY "/seairch" []
+     ai/seairch-command)
+
    (GET "/debug" []
         {:body (json/write-str (card-response "Onyx Magescribe"
                                               (:cards (search-cards "Onyx Magescribe" ))

@@ -9,6 +9,7 @@
             [slackcommands.util :as util]
             [slackcommands.stability :as stability]
             [slackcommands.slack :as slack]
+            [slackcommands.clip :as clip]
             [clj-slack.chat :as slack-chat]
             [clojure.zip :as z]
             [clojure.edn :as edn]
@@ -623,6 +624,48 @@ See <https://docs.midjourney.com/docs/models> for more options.
                         (send-new (midjourney-image-response text bottom "bottom")))))
                   (throw (ex-info "Error" response)))))))
 
+        {:body (json/write-str
+                {"response_type" "in_channel"})
+         :headers {"Content-type" "application/json"}
+         :status 200}))))
+
+(defn find-nearest [text]
+  @(.submit
+    ^java.util.concurrent.ExecutorService
+    @resize-image-executor
+    ^java.util.concurrent.Callable
+    (fn []
+      (clip/find-nearest text))))
+
+(defn seairch-command [request]
+  (let [text (get-in request [:form-params "text"])
+        response-url (get-in request [:form-params "response_url"])]
+
+    (if (#{"" "help"} (str/trim text))
+      {:body (json/write-str
+              {"response_type" "in_channel"
+               "blocks" [{"type" "section"
+                          "text" {"type" "mrkdwn"
+                                  "text" (str "```\n/seairch <query>\n```")}}]})
+       :headers {"Content-type" "application/json"}
+       :status 200}
+      ;; else
+      (do
+        (println "image search: " text)
+        (when (seq (clojure.string/trim text))
+          (future
+            (wrap-retry
+             (wrap-exception
+              response-url
+              (let [image-names (find-nearest text)
+                    urls (into []
+                               (map (fn [fname]
+                                      (str "https://" "aimages.smith.rocks/" fname)))
+                               image-names)]
+                (client/post response-url
+                             {:body (json/write-str
+                                     (image-response text urls 0))
+                              :headers {"Content-type" "application/json"}}))))))
         {:body (json/write-str
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}
