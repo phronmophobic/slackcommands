@@ -1,7 +1,9 @@
 (ns slackcommands.party
   (:require [clojure.string :as str]
             [clojure.data.json :as json]
-            [clojure.java.io :as io]))
+            [slackcommands.slack :as slack]
+            [clojure.java.io :as io])
+  (:import java.util.regex.Pattern))
 
 (defn party-file [party-name]
   (when (or (not (re-matches #"[a-zA-Z0-9\-_.:]+"
@@ -54,12 +56,30 @@
                          "\n```")
 
                     ;; else
-                    (try
-                      (if (re-matches #"^:[a-zA-Z0-9-_]+:$" party-name)
-                        (clojure.string/join (repeat 20 party-name))
-                        (get-party party-name))
-                      (catch IllegalArgumentException e
-                        ":frogsiren:")))]
+                    (cond
+                      (str/includes? party-name "*")
+                      (let [matches (->> (keys (slack/list-emoji))
+                                         (map name)
+                                         (filter #(re-matches 
+                                                   (Pattern/compile
+                                                    (str "^"
+                                                         (str/replace party-name #"\*" ".*")
+                                                         "$"))
+                                                   %)))]
+                        (when (seq matches)
+                          (str/join
+                           " "
+                           (eduction
+                            (map #(str ":" % ":"))
+                            matches))))
+
+                      :else
+                      (try
+                        (if (re-matches #"^:[a-zA-Z0-9-_]+:$" party-name)
+                          (clojure.string/join (repeat 20 party-name))
+                          (get-party party-name))
+                        (catch IllegalArgumentException e
+                          ":frogsiren:"))))]
         
         {:body (json/write-str
                 {"response_type" (if party
