@@ -31,6 +31,11 @@
         com.phronemophobic.membrane/skialib-linux-x86-64 {:mvn/version "0.14-beta"
                                                       ;; :local/root "/home/app/membrane/csource/linux-x86-64"
                                                       }
+
+        com.phronemophobic/clip-clj {:mvn/version "1.1"}
+        com.phronemophobic.cljonda/clip-cpp-linux-x86-64 {:mvn/version "45cc1cab442b3bb019dadce8dcba04d76e99e9c3"}
+        com.taoensso/nippy {:mvn/version "3.3.0"}
+
         amazonica/amazonica {:mvn/version "0.3.165"}
         }
  :aliases
