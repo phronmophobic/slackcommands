@@ -4,6 +4,7 @@
             [amazonica.core :as amazonica]
             [amazonica.aws.s3 :as s3]
             [clojure.string :as str]
+            [clojure.edn :as edn]
             [membrane.ui :as ui]))
 
 (def s3-creds
@@ -240,3 +241,12 @@
 
 (defn plaintext? [mimetype]
   (= mimetype "text/plain"))
+
+(defn read-edn [fname]
+  (with-open [is (io/input-stream fname)
+              ;; is (if (str/ends-with? fname ".gz")
+              ;;      (GZIPInputStream. is)
+              ;;      is)
+              rdr (io/reader is)
+              rdr (java.io.PushbackReader. rdr)]
+    (edn/read rdr)))
