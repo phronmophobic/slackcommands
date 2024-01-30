@@ -823,7 +823,7 @@
                                      "Frosthaven"
                                      "Jaws Of The Lion"]))
         party ["boneshaper"
-               "deepwraith"
+               "hive"
                "deathwalker"]
         command (if (:character command)
                   command
