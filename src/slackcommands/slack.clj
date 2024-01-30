@@ -59,6 +59,18 @@
 (defmethod block->text "emoji" [block]
   (str ":"(get block "name") ":"))
 
+(defmethod block->text "plain_text" [block]
+  (get block "text"))
+
+(defmethod block->text "image" [block]
+  (get block "image_url"))
+
+(defmethod block->text "divider" [block]
+  "\n---------------------\n")
+
+(defmethod block->text "actions" [block]
+  "")
+
 (defn blocks->text [blocks]
   (str/join
    "\n"
