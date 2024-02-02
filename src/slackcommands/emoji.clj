@@ -3,7 +3,8 @@
             [clojure.string :as str]
             [slackcommands.util :as util]
             [membrane.skia :as skia]
-            [membrane.skia.paragraph :as para]
+            [membrane.ui :as ui]
+            ;; [membrane.skia.paragraph :as para]
             [clojure.java.io :as io]))
 
 
@@ -38,10 +39,17 @@
 
 (defn emoji->url [short-name]
   (let [emoji (get @emoji-table short-name)
-        view (para/paragraph
-              {:text emoji
-               :style #:text-style {:font-size 100}})
-        fname (str "emoji-" short-name ".png")
+        view
+        (ui/padding 30
+         (ui/label emoji
+                   (ui/font (.getCanonicalPath (io/file "NotoColorEmoji-Regular.ttf"))
+                            100)))
+        #_(para/paragraph
+           {:text emoji
+            :style
+            #:text-style {:font-size 100
+                          :font-families ["/Users/adrian/Downloads/Noto_Color_Emoji/NotoColorEmoji-Regular.ttf"]}})
+              fname (str "emoji-" short-name ".png")
         f (io/file
            "aimages"
            fname)]
