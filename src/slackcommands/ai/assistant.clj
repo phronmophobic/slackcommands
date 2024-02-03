@@ -14,6 +14,7 @@
             [slackcommands.ai.img :as img]
             [slackcommands.slack :as slack]
             [slackcommands.ai.vision :as vision]
+            [slackcommands.emoji :as emoji]
             [membrane.ui :as ui]
             [clojure.java.io :as io]
             [clj-http.client :as client]
@@ -294,6 +295,9 @@
   (let [url (gif/shrink-gif url)]
     (str "Here is the slackified gif:" url)))
 
+(defn emoji-image-url [_thread-id {:strs [emoji]}]
+  (emoji/emoji->url (str/replace emoji #":" "")))
+
 (defn rustle-image [_thread-id {:strs [image_url emoji]
                                 :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
@@ -303,11 +307,7 @@
         image-url (if image_url
                     image_url
                     (let [emoji (str/replace emoji #":" "")]
-                      (some (fn [[emoji-kw emoji-url]]
-                              (when (= (name emoji-kw)
-                                       emoji)
-                                emoji-url))
-                            (slack/list-emoji))))]
+                      (emoji/emoji->url emoji)))]
     (if image-url
       (let [url (gif/rustle-image image-url opts)]
         (str "Here is the rustled image:" url))
@@ -401,6 +401,7 @@
     "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
     "slackify_gif" #'slackify-gif
+    "emoji_image_url" #'emoji-image-url
     "barf" #'barf}
    (img/tool-fns)))
 
@@ -820,6 +821,18 @@
                "description" "The number of frames per second."
                "minimum" 1
                "maximum" 24}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "emoji_image_url",
+      "description" "Gets the image url for an emoji short name.",
+      "parameters"
+      {"type" "object",
+       "required" ["emoji"]
+       "properties"
+       {"emoji" {"type" "string",
+                 "pattern" "^:.*:$"
+                 "description" "An emoij short name."}}}}}
 
     {"type" "function",
      "function"
