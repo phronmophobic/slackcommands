@@ -29,6 +29,12 @@
     (map block->text)
     (get block "elements"))))
 
+(defmethod block->text "rich_text_preformatted" [block]
+  (str/join
+   (eduction
+    (map block->text)
+    (get block "elements"))))
+
 (defmethod block->text "user" [block]
   (str "@" (get block "user_id")))
 
@@ -72,6 +78,7 @@
   "")
 
 (defn blocks->text [blocks]
+  ;; (clojure.pprint/pprint blocks)
   (str/join
    "\n"
    (eduction
