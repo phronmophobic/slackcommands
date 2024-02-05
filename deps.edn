@@ -32,20 +32,27 @@
                                                       ;; :local/root "/home/app/membrane/csource/linux-x86-64"
                                                       }
 
-        com.phronemophobic/clip-clj {:mvn/version "1.1"}
-        com.phronemophobic.cljonda/clip-cpp-linux-x86-64 {:mvn/version "45cc1cab442b3bb019dadce8dcba04d76e99e9c3"}
+        com.phronemophobic/clip-clj {:mvn/version "1.2"}
+        com.phronemophobic.cljonda/clip-cpp-linux-x86-64 {:mvn/version "f4ee24bb86680a27f83c8e8c70adbcf4cb776615"}
         com.taoensso/nippy {:mvn/version "3.3.0"}
+        datalevin/datalevin {:mvn/version "0.8.25"}
 
         amazonica/amazonica {:mvn/version "0.3.165"}
         }
  :aliases
  {:server
-  {:jvm-opts ["-Xmx512M" "-Djava.awt.headless=true"]}
+  {:jvm-opts ["-Xmx512M" "-Djava.awt.headless=true"
+              ;; for datalevin
+              "--add-opens=java.base/java.nio=ALL-UNNAMED"
+              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
   :project
-  {:extra-deps
+  {:jvm-opts ["--add-opens=java.base/java.nio=ALL-UNNAMED"
+              "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
+   :extra-deps
    {;; com.phronemophobic/membrane {:mvn/version "0.12.2-beta"}
     com.phronemophobic/membrane {:local/root "../membrane2"}
     com.phronemophobic.membrane/skialib-macosx-aarch64 {:mvn/version "0.13-beta"}
+    com.phronemophobic.cljonda/clip-cpp-darwin-aarch64 {:mvn/version "f4ee24bb86680a27f83c8e8c70adbcf4cb776615"}
     com.phronemophobic/schematic {:local/root "../schematic"}
     com.phronemophobic.membrane/skialib-linux-x86-64 {:mvn/version "0.13-beta"
                                                       ;; :local/root "/home/app/membrane/csource/linux-x86-64"
