@@ -11,9 +11,7 @@
             [clojure.zip :as z]
             [clojure.edn :as edn]
             [clojure.data.json :as json])
-  (:import java.util.regex.Pattern)
-  #_(:import com.github.benmanes.caffeine.cache.Caffeine
-           java.util.concurrent.TimeUnit))
+  (:import java.util.regex.Pattern))
 
 (def openai-key
   (:chatgpt/api-key
@@ -124,7 +122,7 @@
                           `get-card-interact {:cards cards
                                               :index i})})
                       [{"type" "button",
-                          "text"
+                        "text"
                         {"type" "plain_text", "text" "..."}
                         "value" (util/make-action `list-cards-interact {:cards cards})}]))
                }]))})
@@ -374,8 +372,8 @@
                                                      (str 
                                                       (-> text :text :value)
                                                       annotations-str)]
-                                                {:role (:role msg)
-                                                 :content content})))))))
+                                                 {:role (:role msg)
+                                                  :content content})))))))
 
               full-response (clojure.string/join "\n\n"
                                                  (into []
@@ -403,7 +401,7 @@
                                      "element" {
                                                 "type" "plain_text_input",
                                                 "action_id" #_(make-action
-                                                             [:chat-more (:id thread)])
+                                                               [:chat-more (:id thread)])
                                                 (util/make-action
                                                  `chat-more-interact
                                                  {:thread-id (:id thread)})},
@@ -1112,10 +1110,10 @@ or for buildings:
                          {:body (json/write-str
                                  (stats-response))
                           :headers {"Content-type" "application/json"}})))
-       {:body (json/write-str
-               {"response_type" "in_channel"})
-        :headers {"Content-type" "application/json"}
-        :status 200})
+        {:body (json/write-str
+                {"response_type" "in_channel"})
+         :headers {"Content-type" "application/json"}
+         :status 200})
 
       :else
       (let [cards (query-cards cards text)]
@@ -1123,7 +1121,7 @@ or for buildings:
                  (json/write-str
                   (card-response cards 0)
                   #_{"response_type" "in_channel"
-                   "blocks" (cards-block cards)})
+                     "blocks" (cards-block cards)})
                  "No cards found.")
          :headers {"Content-type" "application/json"}
          :status 200})

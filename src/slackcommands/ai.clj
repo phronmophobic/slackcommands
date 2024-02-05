@@ -39,13 +39,13 @@
                   (or 
                    (get-in payload ["message"])
                    (get-in payload ["error" "message"])))
-                 (catch Exception e
-                   "Unknown Error"))]
+                (catch Exception e
+                  "Unknown Error"))]
       (clojure.pprint/pprint body)
       (let [blocks [{"type" "section"
-                      "text" {"type" "plain_text"
-                              "emoji" true
-                              "text" (str ":whale: " msg)}}]]
+                     "text" {"type" "plain_text"
+                             "emoji" true
+                             "text" (str ":whale: " msg)}}]]
         (client/post response-url
                      {:body (json/write-str
                              {
@@ -248,41 +248,41 @@
                             ":thonkest-spin:"])
                  " "
                  text)
-            (let [messages (conj messages {:role "user" :content text})
-                  message (chat-completion ai-type messages)
+          (let [messages (conj messages {:role "user" :content text})
+                message (chat-completion ai-type messages)
 
-                  full-response (clojure.string/join "\n\n"
-                                                     (into []
-                                                           (comp (map (fn [{:keys [role content]}]
-                                                                        (case role
-                                                                          "user" (str "*" content "*")
-                                                                          "assistant"  content))))
-                                                           (take-last 2
-                                                                      (conj messages
-                                                                            message))))]
-              
-              (doseq [chunk (partition-all 2999 full-response)
-                      :let [subresponse (apply str chunk)]]
-                (send-blocks [{"type" "section"
-                               "text" {"type" "mrkdwn"
-                                       "text" subresponse}}
-                              {
-                               "dispatch_action" true,
-                               "type" "input",
-                               "element" {
-                                          "type" "plain_text_input",
-                                          "action_id"
-                                          (util/make-action
-                                           `chat-more-interact
-                                           {:messages (conj messages message)
-                                            :ai-type ai-type})},
-                               "label" {
-                                        "type" "plain_text",
-                                        "text" "yes, and?",
-                                        "emoji" true
-                                        }
-                               }
-                              ])))))))
+                full-response (clojure.string/join "\n\n"
+                                                   (into []
+                                                         (comp (map (fn [{:keys [role content]}]
+                                                                      (case role
+                                                                        "user" (str "*" content "*")
+                                                                        "assistant"  content))))
+                                                         (take-last 2
+                                                                    (conj messages
+                                                                          message))))]
+            
+            (doseq [chunk (partition-all 2999 full-response)
+                    :let [subresponse (apply str chunk)]]
+              (send-blocks [{"type" "section"
+                             "text" {"type" "mrkdwn"
+                                     "text" subresponse}}
+                            {
+                             "dispatch_action" true,
+                             "type" "input",
+                             "element" {
+                                        "type" "plain_text_input",
+                                        "action_id"
+                                        (util/make-action
+                                         `chat-more-interact
+                                         {:messages (conj messages message)
+                                          :ai-type ai-type})},
+                             "label" {
+                                      "type" "plain_text",
+                                      "text" "yes, and?",
+                                      "emoji" true
+                                      }
+                             }
+                            ])))))))
   )
 
 (defn chat-command [request]
@@ -310,8 +310,8 @@
         main-blocks [ {"type" "image",
                        "title" {"type" "plain_text",
                                 "text" (str prompt " (" (inc index) "/" (count urls) ")")},
-                      "image_url" url
-                      "alt_text" prompt}]]
+                       "image_url" url
+                       "alt_text" prompt}]]
     {"response_type" "in_channel"
      "blocks"
      (into main-blocks
@@ -431,30 +431,30 @@
     (when (seq (clojure.string/trim text))
       (future
         (wrap-exception
-         response-url
-         (let [response (api/create-image {:prompt text
-                                           :n 1
-                                           :model "dall-e-3"
-                                           :size
-                                           ;; "256x256"
-                                           ;; "512x512"
-                                           "1024x1024"
-                                           }
-                                          {:api-key api-key})
+            response-url
+          (let [response (api/create-image {:prompt text
+                                            :n 1
+                                            :model "dall-e-3"
+                                            :size
+                                            ;; "256x256"
+                                            ;; "512x512"
+                                            "1024x1024"
+                                            }
+                                           {:api-key api-key})
 
-               response-id (str (random-uuid))
+                response-id (str (random-uuid))
 
-               urls (into []
-                          (comp (map :url)
-                                (map-indexed
-                                 (fn [i url]
-                                   (util/save-and-upload-large-png url))))
-                          (:data response))]
+                urls (into []
+                           (comp (map :url)
+                                 (map-indexed
+                                  (fn [i url]
+                                    (util/save-and-upload-large-png url))))
+                           (:data response))]
 
-           (client/post response-url
-                        {:body (json/write-str
-                                (dalle3-image-response text (first urls)))
-                         :headers {"Content-type" "application/json"}})))))
+            (client/post response-url
+                         {:body (json/write-str
+                                 (dalle3-image-response text (first urls)))
+                          :headers {"Content-type" "application/json"}})))))
 
     {:body (json/write-str
             {"response_type" "in_channel"

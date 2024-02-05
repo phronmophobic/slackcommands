@@ -31,10 +31,10 @@
 ;; https://slack.com/help/articles/360001623607-Create-commands-for-Slack-apps
 (defn get-access-token []
   (let [result (client/post "https://us.battle.net/oauth/token"
-                           {:query-params
-                            (merge
-                             {"grant_type" "client_credentials"}
-                             battle-net-credentials)})
+                            {:query-params
+                             (merge
+                              {"grant_type" "client_credentials"}
+                              battle-net-credentials)})
         body (:body result)
         obj (json/read-json body)
         token (:access_token obj)]
@@ -46,10 +46,10 @@
   (if-let [token @token-atm]
     @token
     (let [token (swap! token-atm
-                        (fn [token]
-                          (if token
-                            token
-                            (future (get-access-token)))))]
+                       (fn [token]
+                         (if token
+                           token
+                           (future (get-access-token)))))]
       @token)))
 (defn refetch-token []
   (reset! token-atm nil)
@@ -62,59 +62,59 @@
   ([token retry-count]
    
    (try+
-    (let [result (client/get "https://us.api.blizzard.com/hearthstone/metadata"
-                             {:headers {"Authorization" (str "Bearer " (get-token))}
-                              :query-params
-                              {"locale" "en_US"}})
-          body (:body result)
-          obj (json/read-json body)]
-      obj)
-    (catch [:status 401] e
-      (println "unauthorized")
-      (when (pos? retry-count)
-        (refetch-token)
-        (-get-meta-data (get-token) (dec retry-count)))))))
+     (let [result (client/get "https://us.api.blizzard.com/hearthstone/metadata"
+                              {:headers {"Authorization" (str "Bearer " (get-token))}
+                               :query-params
+                               {"locale" "en_US"}})
+           body (:body result)
+           obj (json/read-json body)]
+       obj)
+     (catch [:status 401] e
+       (println "unauthorized")
+       (when (pos? retry-count)
+         (refetch-token)
+         (-get-meta-data (get-token) (dec retry-count)))))))
 
 (defn -search-cards
   ([txt]
    (-search-cards (get-token) txt 1))
   ([token txt retry-count]
    (try+
-    (let [result (client/get "https://us.api.blizzard.com/hearthstone/cards"
-                             {:headers {"Authorization" (str "Bearer " token)}
-                              :query-params
-                              (merge
-                               {"locale" "en_US"
-                                }
-                               (if (string? txt)
-                                 {"textFilter" txt}
-                                 txt))})
-          body (:body result)
-          obj (json/read-json body)]
-      obj)
-    (catch [:status 401] e
-      (println "unauthorized")
-      (when (pos? retry-count)
-        (refetch-token)
-        (-search-cards (get-token) txt (dec retry-count)))))))
+     (let [result (client/get "https://us.api.blizzard.com/hearthstone/cards"
+                              {:headers {"Authorization" (str "Bearer " token)}
+                               :query-params
+                               (merge
+                                {"locale" "en_US"
+                                 }
+                                (if (string? txt)
+                                  {"textFilter" txt}
+                                  txt))})
+           body (:body result)
+           obj (json/read-json body)]
+       obj)
+     (catch [:status 401] e
+       (println "unauthorized")
+       (when (pos? retry-count)
+         (refetch-token)
+         (-search-cards (get-token) txt (dec retry-count)))))))
 
 (defn -get-card
   ([slug]
    (-get-card (get-token) slug 1))
   ([token slug retry-count]
    (try+
-    (let [result (client/get (str "https://us.api.blizzard.com/hearthstone/cards/" slug)
-                             {:headers {"Authorization" (str "Bearer " token)}
-                              :query-params
-                              {"locale" "en_US"}})
-          body (:body result)
-          obj (json/read-json body)]
-      obj)
-    (catch [:status 401] e
-      (println "unauthorized")
-      (when (pos? retry-count)
-        (refetch-token)
-        (-get-card (get-token) slug (dec retry-count)))))))
+     (let [result (client/get (str "https://us.api.blizzard.com/hearthstone/cards/" slug)
+                              {:headers {"Authorization" (str "Bearer " token)}
+                               :query-params
+                               {"locale" "en_US"}})
+           body (:body result)
+           obj (json/read-json body)]
+       obj)
+     (catch [:status 401] e
+       (println "unauthorized")
+       (when (pos? retry-count)
+         (refetch-token)
+         (-get-card (get-token) slug (dec retry-count)))))))
 
 
 (def one-day (* 1000 86400))
@@ -330,9 +330,9 @@
                                                    (-> subcommand
                                                        (dissoc "keyword")
                                                        (update "textFilter" (fn [s]
-                                                                        (if s
-                                                                          (str s "," (get subcommand "keyword"))
-                                                                          (get subcommand "keyword")))))
+                                                                              (if s
+                                                                                (str s "," (get subcommand "keyword"))
+                                                                                (get subcommand "keyword")))))
                                                    subcommand)]
                                   (merge-with-k
                                    (fn [k s1 s2]
@@ -448,10 +448,10 @@
                           {"type" "image"
                            "alt_text" (:name c)
                            "image_url"  (:cropImage c)})
-                      
+                        
                         }]
         parent-cards (when-let [pid (:parentId card)]
-                      (search-cards {:id pid}))
+                       (search-cards {:id pid}))
         child-cards (when (seq (:childIds card))
                       (search-cards {:id (clojure.string/join ","
                                                               (:childIds card))}))
@@ -514,43 +514,43 @@
   (let [parts (clojure.string/split text #" +")]
     (if (= (count parts) 2)
       (try+
-       (let [deck-code (nth parts 1)
-             response (-read-deck-code deck-code)
-             cards (:cards response)
-             card-strs (->> (group-by :slug cards)
-                            (sort-by (fn [[slug cards]]
-                                       (->> cards
-                                            first
-                                            :manaCost)))
-                            (map (fn [[slug cards]]
-                                   (let [card (first cards)]
-                                     (str (if (>= (count cards) 2) "2x" "  ")
-                                          " "
-                                          (:manaCost card)
-                                          " "
-                                          (case (:rarityId card)
-                                            5 "**"
-                                            4 "*"
-                                            ;; else
-                                            nil
-                                            )
-                                          (:name card))))))]
-         {"response_type" "in_channel"
-          "blocks" [{"type" "section"
-                     "text" {"type" "mrkdwn"
-                             "text"
-                             (str "```"
-                                  "Class: " (:name (:class response))
-                                  "\n"
-                                  "Dust: " (apply + (map #(card-dust (:rarityId %)) cards))
-                                  "\n\n"
-                                  (clojure.string/join "\n" card-strs)
-                                  "```")}}]})
-       (catch [:status 400] e
-         {"response_type" "ephemeral"
-          "blocks" [{"type" "section"
-                     "text" {"type" "mrkdwn"
-                             "text" (str "Error parsing deck code.\n")}}]}))
+        (let [deck-code (nth parts 1)
+              response (-read-deck-code deck-code)
+              cards (:cards response)
+              card-strs (->> (group-by :slug cards)
+                             (sort-by (fn [[slug cards]]
+                                        (->> cards
+                                             first
+                                             :manaCost)))
+                             (map (fn [[slug cards]]
+                                    (let [card (first cards)]
+                                      (str (if (>= (count cards) 2) "2x" "  ")
+                                           " "
+                                           (:manaCost card)
+                                           " "
+                                           (case (:rarityId card)
+                                             5 "**"
+                                             4 "*"
+                                             ;; else
+                                             nil
+                                             )
+                                           (:name card))))))]
+          {"response_type" "in_channel"
+           "blocks" [{"type" "section"
+                      "text" {"type" "mrkdwn"
+                              "text"
+                              (str "```"
+                                   "Class: " (:name (:class response))
+                                   "\n"
+                                   "Dust: " (apply + (map #(card-dust (:rarityId %)) cards))
+                                   "\n\n"
+                                   (clojure.string/join "\n" card-strs)
+                                   "```")}}]})
+        (catch [:status 400] e
+          {"response_type" "ephemeral"
+           "blocks" [{"type" "section"
+                      "text" {"type" "mrkdwn"
+                              "text" (str "Error parsing deck code.\n")}}]}))
       {"response_type" "ephemeral"
        "blocks" [{"type" "section"
                   "text" {"type" "mrkdwn"

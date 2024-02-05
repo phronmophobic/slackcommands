@@ -51,46 +51,46 @@
    ;; ;; (GET "/js/" [] (response/resource-response "js/compiled/berry.js" {:root "public"}))
 
    (ANY "/this-is-fine" []
-        {:body (json/write-str
-                {"response_type" "in_channel"
-                 "blocks" [{"type" "section"
-                            "text" {"type" "plain_text"
-                                    "emoji" true
-                                    "text" ":this-is-fine-party: :this-is-fine-fire: :thisisfine: :this-is-fine-but-with-ai: :this-is-fine-but-with-wind: :this-is-fine-but-with-flooding: :this-is-fine-but-with-lightning: :this-is-fine-but-with-earthquakes: :this-is-fine-but-with-bankruptcy: :this-is-fine-but-with-al: :meow-this-is-fine:"}}]})
-         :headers {"Content-type" "application/json"}
-         :status 200})
+     {:body (json/write-str
+             {"response_type" "in_channel"
+              "blocks" [{"type" "section"
+                         "text" {"type" "plain_text"
+                                 "emoji" true
+                                 "text" ":this-is-fine-party: :this-is-fine-fire: :thisisfine: :this-is-fine-but-with-ai: :this-is-fine-but-with-wind: :this-is-fine-but-with-flooding: :this-is-fine-but-with-lightning: :this-is-fine-but-with-earthquakes: :this-is-fine-but-with-bankruptcy: :this-is-fine-but-with-al: :meow-this-is-fine:"}}]})
+      :headers {"Content-type" "application/json"}
+      :status 200})
 
 
    (ANY "/party" []
-        party/party-handler
-        )
+     party/party-handler
+     )
 
    (ANY "/parrot" []
-        {:body (json/write-str
-                {"response_type" "in_channel"
-                 "blocks" [{"type" "section"
-                            "text" {"type" "plain_text"
-                                    "emoji" true
-                                    "text" ":party_parrot: :clj-parrot: :shipitparrot: :pirateparrot: :parrot: :parrot_mustache: :fixparrot: :sad_parrot: :fast-parrot: :conga_parrot: :mask-parrot: :portalparrot: :coffee_parrot: :deal_with_it_parrot:"}}]})
-         :headers {"Content-type" "application/json"}
-         :status 200})
+     {:body (json/write-str
+             {"response_type" "in_channel"
+              "blocks" [{"type" "section"
+                         "text" {"type" "plain_text"
+                                 "emoji" true
+                                 "text" ":party_parrot: :clj-parrot: :shipitparrot: :pirateparrot: :parrot: :parrot_mustache: :fixparrot: :sad_parrot: :fast-parrot: :conga_parrot: :mask-parrot: :portalparrot: :coffee_parrot: :deal_with_it_parrot:"}}]})
+      :headers {"Content-type" "application/json"}
+      :status 200})
 
    (ANY "/terminator-image" []
-        ;; ai/stable-image-command
-        ai/image-command)
+     ;; ai/stable-image-command
+     ai/image-command)
 
    (ANY "/terminator-stable-image" []
-        ai/stable-image-command)
+     ai/stable-image-command)
 
    (ANY "/midjourney" []
-        ai/midjourney-image-command)
+     ai/midjourney-image-command)
 
    #_(GET "/aimages/ss.jpg"
-        []
-        (do
-          (when-let [f (requiring-resolve 'com.phronemophobic.discord.viewer/update-debug)]
-            (f))
-          (response/file-response "aimages/ss.jpg")))
+         []
+       (do
+         (when-let [f (requiring-resolve 'com.phronemophobic.discord.viewer/update-debug)]
+           (f))
+         (response/file-response "aimages/ss.jpg")))
 
 
    (route/files "/aimages/"
@@ -103,7 +103,7 @@
 
 
    #_(ANY "/oauth/redirect" []
-     slackcommands.slack/oauth-redirect)
+       slackcommands.slack/oauth-redirect)
 
    (ANY "/slack/events" []
      slackcommands.slack.events/events-api)
@@ -116,18 +116,18 @@
      (ai/chat-command (assoc req :ai-type :naighty)))
 
    (ANY "/frostrules" []
-        gloom/frostrules-command)
+     gloom/frostrules-command)
 
    (ANY "/seairch" []
      ai/seairch-command)
 
    #_(GET "/debug" []
-        {:body (json/write-str (card-response "Onyx Magescribe"
-                                              (:cards (search-cards "Onyx Magescribe" ))
-                                              0
+       {:body (json/write-str (card-response "Onyx Magescribe"
+                                             (:cards (search-cards "Onyx Magescribe" ))
+                                             0
 
-                                              ))
-         :status 200})
+                                             ))
+        :status 200})
    (ANY "/interact/getcard" [] slack-interact)
    ;; (GET "/bar" [] "Hello Bar")
    (route/not-found "Not Found"))
@@ -168,7 +168,7 @@
 
 (comment
   (require 'clojure.repl.deps)
-,)
+  ,)
 
 
 
