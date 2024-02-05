@@ -32,14 +32,6 @@
 (def api-key (:chatgpt/api-key
               (edn/read-string (slurp "secrets.edn"))))
 
-(def ^:dynamic *retry* nil)
-
-(defmacro wrap-retry [& body]
-  `(let [f# (fn retry# []
-              (binding [*retry* retry#]
-                ~@body))]
-     (f#)))
-
 (defn send-error-msg [response-url err]
   (let [{:keys [body]} err]
     (let [msg (try
@@ -50,19 +42,10 @@
                  (catch Exception e
                    "Unknown Error"))]
       (clojure.pprint/pprint body)
-      (let [retry-button {"type" "actions",
-                           "elements"
-                           [{"type" "button",
-                             "text"
-                             {"type" "plain_text", "text" "try again"}
-                             "value" (make-action [:retry *retry*])}]}
-            blocks [{"type" "section"
+      (let [blocks [{"type" "section"
                       "text" {"type" "plain_text"
                               "emoji" true
-                              "text" (str ":whale: " msg)}}]
-            blocks (if *retry*
-                      (conj blocks retry-button)
-                      blocks)]
+                              "text" (str ":whale: " msg)}}]]
         (client/post response-url
                      {:body (json/write-str
                              {
@@ -288,11 +271,11 @@
                                "type" "input",
                                "element" {
                                           "type" "plain_text_input",
-                                          "action_id" (make-action
-                                                       [:chat-more
-                                                        (conj messages message)
-                                                        ai-type])
-                                          },
+                                          "action_id"
+                                          (util/make-action
+                                           `chat-more-interact
+                                           {:messages (conj messages message)
+                                            :ai-type ai-type})},
                                "label" {
                                         "type" "plain_text",
                                         "text" "yes, and?",
@@ -338,11 +321,20 @@
              [{"type" "button",
                "text"
                {"type" "plain_text", "text" "<<"}
-               "value" (make-action [:get-image prompt urls (mod (dec index) (count urls))])}
+               "value"
+               (util/make-action `get-image-interact
+                                 {:prompt prompt
+                                  :urls urls
+                                  :index (mod (dec index) (count urls))})
+               #_(make-action [:get-image prompt urls (mod (dec index) (count urls))])}
               {"type" "button",
                "text"
                {"type" "plain_text", "text" ">>"}
-               "value" (make-action [:get-image prompt urls (mod (inc index) (count urls))])}]}])})
+               "value" #_(make-action [:get-image prompt urls (mod (inc index) (count urls))])
+               (util/make-action `get-image-interact
+                                 {:prompt prompt
+                                  :urls urls
+                                  :index (mod (inc index) (count urls))})}]}])})
   )
 
 (defn truncate-from-end [s n]
@@ -389,88 +381,48 @@
           (recur (z/next new-zip))))))
   )
 
-(defn ai-command-interact [request]
-  (let [payload (json/read-str (get (:form-params request) "payload"))
-        url (get payload "response_url")
+(defn chat-more-interact [payload {:keys [messages ai-type]}]
+  (let [url (get payload "response_url")
         channel-id (get-in payload ["channel" "id"])
+        ts (get-in payload ["message" "thread_ts"]
+                   (get-in payload ["message" "ts"]))
         action (-> payload
                    (get "actions")
                    first
-                   (get "value"))
-        action-id (-> payload
-                      (get "actions")
-                      first
-                      (get "action_id"))
-        [action-type & action-args :as event]
-        (cond
-          (.startsWith action "ai")
-          (get-action action)
+                   (get "value"))]
+    (when (not= action "image")
+      (future
+        (send-chat-response
+         {:response-url url
+          :thread-ts ts
+          :channel-id channel-id
+          :ai-type ai-type
+          :messages messages
+          :text action})
+        (let [blocks (get-in payload ["message" "blocks"])]
+          (client/post url
+                       {:body (json/write-str
+                               {"blocks" (reset-chat-text-input blocks)
+                                "response_type" "in_channel"
+                                "replace_original" true})
+                        :headers {"Content-type" "application/json"}}))))
 
-          (.startsWith action-id "ai")
-          (get-action action-id))]
-    (case action-type
+    {:status 200}))
 
-      :retry
-      (let [[_ retry-fn] event]
-        
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 {"delete_original" true})
-                          :headers {"Content-type" "application/json"}})
-            (retry-fn)
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      :chat-more
-      (let [[_ messages ai-type] event]
-        (if (= action "image")
-          (do
-            "convert to image prompt"
-            )
-         (let [ts (get-in payload ["message" "thread_ts"]
-                          (get-in payload ["message" "ts"]))]
-           (send-chat-response
-            {:response-url url
-             :thread-ts ts
-             :channel-id channel-id
-             :ai-type ai-type
-             :messages messages
-             :text action})
-           (future
-             (let [blocks (get-in payload ["message" "blocks"])]
-              (client/post url
-                           {:body (json/write-str
-                                   {"blocks" (reset-chat-text-input blocks)
-                                    "response_type" "in_channel"
-                                    "replace_original" true})
-                            :headers {"Content-type" "application/json"}})))
-
-           {:status 200})))
-
-      :get-image
-      (let [[_ prompt urls index] event]
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 (assoc (image-response prompt urls index)
-                                        "replace_original" true))
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      ;; else
-      )))
-
-
+(defn get-image-interact [payload {:keys [prompt urls index] }]
+  (let [url (get payload "response_url")]
+    (future
+      (try
+        (client/post url
+                     {:body (json/write-str
+                             (assoc (image-response prompt urls index)
+                                    "replace_original" true))
+                      :headers {"Content-type" "application/json"}})
+        (catch Exception e
+          (prn e)))))
+  {:body "ok"
+   :headers {"Content-type" "application/json"}
+   :status 200})
 
 (defn image-command [request]
   (let [text (get-in request [:form-params "text"])
@@ -528,14 +480,13 @@
         (println "stable image: " text)
         (when (seq (clojure.string/trim text))
           (future
-            (wrap-retry
-             (wrap-exception
-              response-url
+            (wrap-exception
+                response-url
               (let [urls (stability/create-image text)]
                 (client/post response-url
                              {:body (json/write-str
                                      (image-response text urls 0))
-                              :headers {"Content-type" "application/json"}}))))))
+                              :headers {"Content-type" "application/json"}})))))
         {:body (json/write-str
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}
@@ -654,9 +605,8 @@ See <https://docs.midjourney.com/docs/models> for more options.
         (println "image search: " text)
         (when (seq (clojure.string/trim text))
           (future
-            (wrap-retry
-             (wrap-exception
-              response-url
+            (wrap-exception
+                response-url
               (let [image-names (find-nearest text)
                     urls (into []
                                (map (fn [fname]
@@ -665,7 +615,7 @@ See <https://docs.midjourney.com/docs/models> for more options.
                 (client/post response-url
                              {:body (json/write-str
                                      (image-response text urls 0))
-                              :headers {"Content-type" "application/json"}}))))))
+                              :headers {"Content-type" "application/json"}})))))
         {:body (json/write-str
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}

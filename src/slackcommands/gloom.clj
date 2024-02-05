@@ -57,18 +57,6 @@
   (str "https://raw.githubusercontent.com/any2cards/worldhaven/master/images/"
        (:image card)))
 
-(def ^:dynamic action-data nil)
-(defn -get-action [s]
-  (assert action-data)
-  action-data)
-(def one-day (* 1000 86400))
-(def get-action (memo/ttl -get-action :ttl/threshold one-day))
-(defn make-action [data]
-  (binding [action-data data]
-    (let [s (str "gh" (hash data))]
-      (get-action s)
-      s)))
-
 (defn list-cards-response [cards]
   (let [header {"type" "section"
                 "text" {"type" "mrkdwn",
@@ -76,7 +64,7 @@
                 "accessory" {"type" "button"
                              "text" {"type" "plain_text"
                                      "text" "delete"}
-                             "value" (make-action [:delete-message])}}
+                             "value" (util/make-action `util/delete-message)}}
         main-blocks (for [[i card] (map-indexed vector cards)]
                       {"type" "section"
                        "text" {"type" "mrkdwn",
@@ -89,7 +77,8 @@
                        "accessory" {"type" "button"
                                     "text" {"type" "plain_text"
                                             "text" "view"}
-                                    "value" (make-action [:getcard cards i])}
+                                    "value" (util/make-action `get-card-interact {:cards cards
+                                                                                  :index i})}
                        })]
     {"response_type" "in_channel"
      "blocks" (into [header]
@@ -104,7 +93,7 @@
                       "accessory" {"type" "button"
                                    "text" {"type" "plain_text"
                                            "text" "delete"}
-                                   "value" (make-action [:delete-message])}}
+                                   "value" (util/make-action `util/delete-message)}}
 
                      {"type" "divider"}
                      {"type" "image",
@@ -130,11 +119,14 @@
                         {"type" "button",
                          "text"
                          {"type" "plain_text", "text" (:name card)}
-                         "value" (make-action [:getcard cards i])})
+                         "value" #_(util/make-action [:getcard cards i])
+                         (util/make-action
+                          `get-card-interact {:cards cards
+                                              :index i})})
                       [{"type" "button",
                           "text"
                         {"type" "plain_text", "text" "..."}
-                        "value" (make-action [:list-cards cards])}]))
+                        "value" (util/make-action `list-cards-interact {:cards cards})}]))
                }]))})
   )
 
@@ -145,7 +137,7 @@
                 "accessory" {"type" "button"
                              "text" {"type" "plain_text"
                                      "text" "delete"}
-                             "value" (make-action [:delete-message])}}
+                             "value" (util/make-action `util/delete-message)}}
         main-blocks (for [[i item] (map-indexed vector items)]
                       {"type" "section"
                        "text" {"type" "mrkdwn",
@@ -153,7 +145,10 @@
                        "accessory" {"type" "button"
                                     "text" {"type" "plain_text"
                                             "text" "view"}
-                                    "value" (make-action [:getitem items i])}
+                                    "value" #_(make-action [:getitem items i])
+                                    (util/make-action `get-item-interact
+                                                      {:items items
+                                                       :index i})}
                        })]
     {"response_type" "in_channel"
      "blocks" (into [header]
@@ -168,7 +163,7 @@
                       "accessory" {"type" "button"
                                    "text" {"type" "plain_text"
                                            "text" "delete"}
-                                   "value" (make-action [:delete-message])}}
+                                   "value" (util/make-action `util/delete-message)}}
 
                      {"type" "divider"}
                      {"type" "image",
@@ -193,12 +188,15 @@
                         {"type" "button",
                          "text"
                          {"type" "plain_text", "text" (:xws item)}
-                         "value" (make-action [:getitem items i])})
+                         "value" #_(make-action [:getitem items i])
+                         (util/make-action `get-item-interact {:items items
+                                                               :index i})})
                       [{"type" "button",
                         "text"
                         {"type" "plain_text", "text" "..."}
-                        "value" (make-action [:list-items items])}]))
-               }]))})
+                        "value" (util/make-action
+                                 `list-items-interact
+                                 {:items items})}]))}]))})
   )
 
 (defn campaign->md [c]
@@ -404,9 +402,11 @@
                                      "type" "input",
                                      "element" {
                                                 "type" "plain_text_input",
-                                                "action_id" (make-action
+                                                "action_id" #_(make-action
                                                              [:chat-more (:id thread)])
-                                                },
+                                                (util/make-action
+                                                 `chat-more-interact
+                                                 {:thread-id (:id thread)})},
                                      "label" {
                                               "type" "plain_text",
                                               "text" "yes, and?",
@@ -422,135 +422,92 @@
         (catch Exception e
           (clojure.pprint/pprint e))))))
 
-(defn gh-command-interact [request]
-  (let [payload (json/read-str (get (:form-params request) "payload"))
-        url (get payload "response_url")
+(defn list-cards-interact [payload {:keys [cards]}]
+  (let [url (get payload "response_url")]
+    (future
+      (try
+        (client/post url
+                     {:body (json/write-str
+                             (assoc (list-cards-response cards)
+                                    "replace_original" true))
+                      :headers {"Content-type" "application/json"}})
+        (catch Exception e
+          (prn e))))
+    {:body "ok"
+     :headers {"Content-type" "application/json"}
+     :status 200}))
+
+
+(defn get-card-interact [payload {:keys [cards index]}]
+  (let [url (get payload "response_url")]
+    (future
+      (try
+        (client/post url
+                     {:body (json/write-str
+                             (assoc (card-response cards
+                                                   index)
+                                    "replace_original" true))
+                      :headers {"Content-type" "application/json"}})
+        (catch Exception e
+          (prn e))))
+    {:body "ok"
+     :headers {"Content-type" "application/json"}
+     :status 200}))
+
+(defn list-items-interact [payload {:keys [items]}]
+  (let [url (get payload "response_url")]
+    (future
+      (try
+        (client/post url
+                     {:body (json/write-str
+                             (assoc (list-items-response items)
+                                    "replace_original" true))
+                      :headers {"Content-type" "application/json"}})
+        (catch Exception e
+          (prn e))))
+    {:body "ok"
+     :headers {"Content-type" "application/json"}
+     :status 200}))
+
+(defn get-item-interact [payload {:keys [items index]}]
+  (let [url (get payload "response_url")]
+    (future
+      (try
+        (client/post url
+                     {:body (json/write-str
+                             (assoc (item-response items
+                                                   index)
+                                    "replace_original" true))
+                      :headers {"Content-type" "application/json"}})
+        (catch Exception e
+          (prn e))))
+    {:body "ok"
+     :headers {"Content-type" "application/json"}
+     :status 200}))
+
+(defn chat-more-interact [payload {:keys [thread-id]}]
+  (let [url (get payload "response_url")
+        ts (get-in payload ["message" "thread_ts"]
+                   (get-in payload ["message" "ts"]))
         action (-> payload
                    (get "actions")
                    first
-                   (get "value"))
-        action-id (-> payload
-                      (get "actions")
-                      first
-                      (get "action_id"))
-        [action-type & action-args :as event]
-        (cond
-          (.startsWith action "gh")
-          (get-action action)
+                   (get "value"))]
+    (future
+      (send-rules-response
+       {:response-url url
+        :thread-ts ts
+        :thread-id thread-id
+        :text action})
+      (let [blocks (get-in payload ["message" "blocks"])]
+        (client/post url
+                     {:body (json/write-str
+                             {"blocks" (reset-chat-text-input blocks)
+                              "response_type" "in_channel"
+                              "replace_original" true})
+                      :headers {"Content-type" "application/json"}})))
 
-          (.startsWith action-id "gh")
-          (get-action action-id))]
-
-    (case action-type
-
-      :delete-message
-      (do
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 {"delete_original" true})
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      :list-cards
-      (let [[_ cards] event]
-            (future
-              (try
-                (client/post url
-                             {:body (json/write-str
-                                     (assoc (list-cards-response cards)
-                                            "replace_original" true))
-                              :headers {"Content-type" "application/json"}})
-                (catch Exception e
-                  (prn e))))
-            {:body "ok"
-             :headers {"Content-type" "application/json"}
-             :status 200})
-
-      :getcard
-      (let [[_ cards index] event]
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 (assoc (card-response cards
-                                                       index)
-                                        "replace_original" true))
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      :list-items
-      (let [[_ items] event]
-            (future
-              (try
-                (client/post url
-                             {:body (json/write-str
-                                     (assoc (list-items-response items)
-                                            "replace_original" true))
-                              :headers {"Content-type" "application/json"}})
-                (catch Exception e
-                  (prn e))))
-            {:body "ok"
-             :headers {"Content-type" "application/json"}
-             :status 200})
-
-      :getitem
-      (let [[_ items index] event]
-        (future
-          (try
-            (client/post url
-                         {:body (json/write-str
-                                 (assoc (item-response items
-                                                       index)
-                                        "replace_original" true))
-                          :headers {"Content-type" "application/json"}})
-            (catch Exception e
-              (prn e))))
-        {:body "ok"
-         :headers {"Content-type" "application/json"}
-         :status 200})
-
-      :chat-more
-      (let [[_ thread-id] event]
-        (let [ts (get-in payload ["message" "thread_ts"]
-                         (get-in payload ["message" "ts"]))]
-          (send-rules-response
-           {:response-url url
-            :thread-ts ts
-            :thread-id thread-id
-            :text action})
-          (future
-            (let [blocks (get-in payload ["message" "blocks"])]
-              (client/post url
-                           {:body (json/write-str
-                                   {"blocks" (reset-chat-text-input blocks)
-                                    "response_type" "in_channel"
-                                    "replace_original" true})
-                            :headers {"Content-type" "application/json"}})))
-
-          {:status 200}))
-
-      )))
-
-;; LoadingCache<Key, Graph> graphs = Caffeine.newBuilder()
-;;     .weakKeys()
-;;     .weakValues()
-;;     .build(key -> createExpensiveGraph(key));
-#_(defn- make-cache [keyfn]
-    (-> (Caffeine/newBuilder)
-        (.expireAfterAccess 5, TimeUnit/MINUTES)
-        (.softValues)
-        (.build keyfn)))
-
+    {:status 200}))
 
 (def worldhaven-root
   (io/file "../worldhaven"))

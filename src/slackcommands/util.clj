@@ -5,6 +5,9 @@
             [amazonica.aws.s3 :as s3]
             [clojure.string :as str]
             [clojure.edn :as edn]
+            [clojure.data.json :as json]
+            [clj-http.client :as client]
+            [datalevin.core :as d]
             [membrane.ui :as ui]))
 
 (def s3-creds
@@ -250,3 +253,39 @@
               rdr (io/reader is)
               rdr (java.io.PushbackReader. rdr)]
     (edn/read rdr)))
+
+(def misc-table "misc-test-table")
+(defonce db
+  (delay
+    (doto (d/open-kv (.getCanonicalPath (io/file "kv.db")))
+      (d/open-dbi misc-table))))
+
+;; slack interactions
+(defn make-action
+  ([var-sym]
+   (make-action var-sym {}))
+  ([var-sym data]
+   (let [action-str (str "action-" (random-uuid))]
+     (d/transact-kv
+      @db
+      [[:put misc-table action-str
+        {:var-sym var-sym
+         :data data}]])
+     action-str)))
+
+(defn get-action [action-str]
+  (d/get-value @db misc-table action-str))
+
+(defn delete-message [payload data]
+  (let [url (get payload "response_url")]
+    (future
+      (try
+        (client/post url
+                     {:body (json/write-str
+                             {"delete_original" true})
+                      :headers {"Content-type" "application/json"}})
+        (catch Exception e
+          (prn e))))
+    {:body "ok"
+     :headers {"Content-type" "application/json"}
+     :status 200}))
