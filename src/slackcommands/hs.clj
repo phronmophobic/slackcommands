@@ -496,7 +496,7 @@
                         "text"
                         {"type" "plain_text", "text" "..."}
                         "value" ;;(make-action [:list-cards search])
-                        (util/make-action `list-cards
+                        (util/make-action `list-cards-interact
                                           {:search search})}]))
                }]))})
   )

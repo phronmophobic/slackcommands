@@ -276,16 +276,19 @@
 (defn get-action [action-str]
   (d/get-value @db misc-table action-str))
 
-(defn delete-message [payload data]
-  (let [url (get payload "response_url")]
-    (future
-      (try
-        (client/post url
-                     {:body (json/write-str
-                             {"delete_original" true})
-                      :headers {"Content-type" "application/json"}})
-        (catch Exception e
-          (prn e))))
-    {:body "ok"
-     :headers {"Content-type" "application/json"}
-     :status 200}))
+(defn delete-message 
+  ([payload]
+   (delete-message payload {}))
+  ([payload _data]
+   (let [url (get payload "response_url")]
+     (future
+       (try
+         (client/post url
+                      {:body (json/write-str
+                              {"delete_original" true})
+                       :headers {"Content-type" "application/json"}})
+         (catch Exception e
+           (prn e))))
+     {:body "ok"
+      :headers {"Content-type" "application/json"}
+      :status 200})))

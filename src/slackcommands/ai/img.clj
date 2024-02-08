@@ -341,7 +341,7 @@
     {"url" {"type" "string",
             "pattern" "^http.*"
             "description" "A url to an image."}}}})
-(defn measure-image [_ {:strs [url]}]
+(defn measure-image [{:strs [url]}]
   (let [[w h] (ui/bounds
                (ui/image (io/as-url url)))]
     (str "width: " w "\n"
@@ -372,7 +372,7 @@
 (defn tool-fns []
   (let [fns (into {}
                   (map (fn [op]
-                         [op (fn [_thread-id m]
+                         [op (fn [m]
                                (img-op (assoc m "op" op)))]))
                   (keys @schemas))]
     (assoc fns "measure_image" #'measure-image)))

@@ -59,9 +59,10 @@
     ;; (clojure.pprint/pprint js)
     (async/thread
       (prn "responding to" ch thread-id text)
-      (assistant/respond2
+      (assistant/respond
        {:ch ch
-        :thread-id thread-id
+        :slack/thread-id thread-id
+        :slack/channel channel
         :prompt text
         :attachments attachments
         :status-ch status-ch}))
