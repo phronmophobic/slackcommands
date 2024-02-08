@@ -71,6 +71,22 @@
 (defmethod block->text "image" [block]
   (get block "image_url"))
 
+(defmethod block->text "rich_text_list" [block]
+  (let [sep-xform (if (= (get block "style")
+                         "ordered")
+                    (map-indexed (fn [i s]
+                                   (str (inc i) ". " s)))
+                    (map (fn [s]
+                           (str "- " s))))]
+    (str
+     (str/join
+      "\n"
+      (eduction
+       (map block->text)
+       sep-xform
+       (get block "elements")))
+     "\n")))
+
 (defmethod block->text "divider" [block]
   "\n---------------------\n")
 
