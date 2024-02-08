@@ -16,12 +16,14 @@
             [slackcommands.slack :as slack]
             [slackcommands.ai.vision :as vision]
             [slackcommands.emoji :as emoji]
+            [slackcommands.db :as db]
             [clj-slack.chat :as chat]
             [membrane.ui :as ui]
             [clojure.java.io :as io]
             [clj-http.client :as client]
             [clojure.string :as str])
-  (:import java.util.concurrent.Executors))
+  (:import java.util.concurrent.Executors
+           java.util.Date))
 
 (def openai-key
   (:chatgpt/api-key
@@ -509,6 +511,19 @@
    ":deciduous_tree:" "A Tree to Sniff: Well, hypothetically."
    ":cheese_wedge:" "Cheese Chunks: A gourmet virtual snack for an especially complicated task."
    ":cookie:" "Doggy Cookies: Tailored for a digital palate, these come in an array of pixelated flavors."})
+
+(defn log-treat [user-id treat-id treat-description]
+  (db/transact! [{:event/time (Date.)
+                  :event/type ::dispense-treat
+                  :event/user user-id
+                  :treat/id treat-id
+                  :treat/description treat-description}]))
+
+(defn treat-log []
+  (db/q '[:find (pull ?e [*])
+          :where
+          [?e :event/type ::dispense-treat]]))
+
 
 (defn request-treat [channel thread-id]
   (let [p (promise)
