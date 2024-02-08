@@ -95,11 +95,16 @@
 
 (defn blocks->text [blocks]
   ;; (clojure.pprint/pprint blocks)
-  (str/join
-   "\n"
-   (eduction
-    (map block->text)
-    blocks)))
+  (try
+    (str/join
+     "\n"
+     (eduction
+      (map block->text)
+      blocks))
+    (catch Exception e
+      (clojure.pprint/pprint blocks)
+      (clojure.pprint/pprint e)
+      (throw e))))
 
 
 
