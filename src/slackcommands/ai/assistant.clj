@@ -525,10 +525,19 @@
                   :treat/id treat-id
                   :treat/description treat-description}]))
 
-(defn treat-log []
-  (db/q '[:find (pull ?e [*])
-          :where
-          [?e :event/type ::dispense-treat]]))
+(defn treat-stats []
+  (let [dispenses (->> (db/q '[:find (pull ?e [*])
+                               :where
+                               [?e :event/type ::dispense-treat]])
+                       (map first))
+        by-user-counts (->> dispenses
+                            (map :event/user)
+                            frequencies)
+        by-treat-counts (->> dispenses
+                             (map :treat/id)
+                             frequencies)]
+    [by-user-counts
+     by-treat-counts]))
 
 
 (defn request-treat [channel thread-id]
@@ -558,10 +567,13 @@
 			         "emoji" true,
 			         "text" "random"}
 		         "value" (wrap-callback 
-                                  (fn []
+                                  (fn [payload]
                                     (let [[emoji description] (rand-nth (seq treats))]
-                                     (deliver p 
-                                              (str emoji " " description)))))}]
+                                      (let [{:strs [id username name team_id]} (get payload "user")]
+                                        (log-treat id emoji description))
+                                      (deliver p 
+                                               (str emoji " " description))))
+                                  true)}]
                        (map (fn [[emoji description]]
                               {"type" "button",
 		               "text" {
@@ -569,8 +581,11 @@
 			               "emoji" true,
 			               "text" emoji}
 		               "value" (wrap-callback 
-                                        (fn []
-                                          (deliver p (str emoji " " description))))}))
+                                        (fn [payload]
+                                          (let [{:strs [id username name team_id]} (get payload "user")]
+                                            (log-treat id emoji description))
+                                          (deliver p (str emoji " " description)))
+                                        true)}))
                        treats)}
                 {"dispatch_action" true
                  "type" "input"
@@ -579,11 +594,14 @@
                             "action_id" 
                             (wrap-callback
                              (fn [payload]
-                               (deliver p
-                                        (-> payload
-                                            (get "actions")
-                                            first
-                                            (get "value"))))
+                               (let [treat-id "custom"
+                                     treat-description (-> payload
+                                                           (get "actions")
+                                                           first
+                                                           (get "value"))
+                                     {:strs [id username name team_id]} (get payload "user")]
+                                 (log-treat id treat-id treat-description)
+                                 (deliver p treat-description)))
                              true)}
                  "label" {"type" "plain_text",
                           "text" "custom treat",
