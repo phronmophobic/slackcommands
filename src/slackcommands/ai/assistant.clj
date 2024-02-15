@@ -191,7 +191,8 @@
     output))
 
 (defn transcribe [{:strs [url]}]
-  (let [f (or (util/url->local url)
+  (let [url (util/maybe-download-slack-url url)
+        f (or (util/url->local url)
               (util/url->file (str (random-uuid))
                               url))
         _ (prn "transcribing" f (.exists f))
@@ -219,7 +220,8 @@
   ,)
 
 (defn link-reader [{:strs [url]}]
-  (let [response (http/get url
+  (let [url (util/maybe-download-slack-url url)
+        response (http/get url
                            {:as :stream})
         content-type (get-in response [:headers "Content-Type"])]
     (case content-type
@@ -282,7 +284,9 @@
                               urls]}]
   (let [prompt (if (and (seq urls)
                         (not= "dalle" using))
-                 (str (str/join " " urls) " "
+                 (str (str/join " "
+                                (map util/maybe-download-slack-url urls))
+                      " "
                       prompt)
                  prompt)]
     (case using
@@ -392,7 +396,8 @@
       "No thread found for that thread id.")))
 
 (defn examine-image [{:strs [url]}]
-  (let [objs (vision/find-objects url)]
+  (let [url (util/maybe-download-slack-url url)
+        objs (vision/find-objects url)]
     (if (seq objs)
       (let [img-url (util/save-and-upload-view
                      #(vision/highlight-objects url objs))
@@ -419,11 +424,11 @@
       "No objects found.")))
 
 (defn computer-enhance-image [{:strs [image_url]}]
-  (let [url (nubes/enhance image_url)]
+  (let [url (nubes/enhance (util/maybe-download-slack-url image_url))]
     (str "Here is the enhanced image:" url)))
 
 (defn slackify-gif [{:strs [url]}]
-  (let [url (gif/shrink-gif url)]
+  (let [url (gif/shrink-gif (util/maybe-download-slack-url url))]
     (str "Here is the slackified gif:" url)))
 
 (defn emoji-image-url [{:strs [emoji]}]
@@ -436,7 +441,7 @@
               :crop? (get m "crop" true)
               :fps (get m "fps" 24)}
         image-url (if image_url
-                    image_url
+                    (util/maybe-download-slack-url image_url)
                     (let [emoji (str/replace emoji #":" "")]
                       (emoji/emoji->url emoji)))]
     (if image-url
@@ -445,7 +450,7 @@
       "An image_url or emoji must be provided.")))
 
 (defn label-image [{:strs [url]}]
-  (let [labels (vision/label-image url)]
+  (let [labels (vision/label-image (util/maybe-download-slack-url url))]
     (if (seq labels)
       (str
        "Please find the labels below:\n"
@@ -461,7 +466,7 @@
       "No labels found.")))
 
 (defn extract-text [{:strs [url]}]
-  (let [text (vision/extract-text url)]
+  (let [text (vision/extract-text (util/maybe-download-slack-url url))]
     (if (seq text)
       (if (str/includes? text "\"")
         (str "The extracted text:\n" text)
@@ -469,11 +474,11 @@
       "No text found.")))
 
 (defn run-llava [{:strs [prompt image_url]}]
-  (nubes/run-llava prompt image_url))
+  (nubes/run-llava prompt (util/maybe-download-slack-url image_url)))
 
 
-(defn resketch [{:strs [prompt image_url]}]
-  (let [urls (nubes/generate-sketch prompt image_url)]
+#_(defn resketch [{:strs [prompt image_url]}]
+  (let [urls (nubes/generate-sketch prompt (util/maybe-download-slack-url image_url))]
     (str "Here are the images:\n"
          (str/join "\n"
                    (eduction
@@ -492,7 +497,8 @@
 
 
 (defn animate [{:strs [image_urls]}]
-  (let [urls (nubes/stable-video-diffusion image_urls)]
+  (let [image_urls (map util/maybe-download-slack-url image_urls)
+        urls (nubes/stable-video-diffusion image_urls)]
     (str "Here are the animations:\n"
          (str/join "\n"
                    (eduction
@@ -608,8 +614,8 @@
       :else 
       (str "out popped a treat: " treat))))
 
-(defn dimentiate [{:strs [image_url]}]
-  (let [url (nubes/dimentiate image_url)]
+#_(defn dimentiate [{:strs [image_url]}]
+  (let [url (nubes/dimentiate (util/maybe-download-slack-url image_url))]
     (str "Here is the polygon file: " url)))
 
 

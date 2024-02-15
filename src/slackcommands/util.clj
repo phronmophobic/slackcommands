@@ -7,6 +7,7 @@
             [clojure.edn :as edn]
             [clojure.data.json :as json]
             [clj-http.client :as client]
+            [slackcommands.slack :as slack]
             [datalevin.core :as d]
             [membrane.ui :as ui]))
 
@@ -63,6 +64,22 @@
   (when (and (str/starts-with? url "https://aimages.smith.rocks/" )
             (.exists (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
     (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
+
+(declare content-type->suffix
+         save-and-upload-stream)
+(defn maybe-download-slack-url [url]
+  (if (str/starts-with? url "https://files.slack.com/")
+    (let [response (client/get 
+                    url
+                    {:headers {"Authorization" (str "Bearer " slack/slack-oauth-token)}
+                     :as :stream})
+          content-type (-> response
+                           :headers
+                           (get "Content-Type"))
+          fname (str (random-uuid) (content-type->suffix content-type))
+          public-url (save-and-upload-stream fname (:body response))]
+      public-url)
+    url))
 
 (defn url->file [fname url]
   (let [f (io/file aimage-dir fname)]
