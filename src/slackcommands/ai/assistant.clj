@@ -486,6 +486,10 @@
                                    (str i ". " url)))
                     urls)))))
 
+(defn remove-image-background [{:strs [image_url]}]
+  (let [url (nubes/remove-background (util/maybe-download-slack-url image_url))]
+    (str "Here are the image without the background: " url)))
+
 (defn generate-music [{:strs [prompt]}]
   (let [paths (nubes/generate-music prompt)]
     (str "Here are the music clips:\n"
@@ -697,6 +701,29 @@
   (let [info (alpaca/account)]
     (:effective_buying_power info)))
 
+(defn update-frosthaven-save [{:keys [assistant/thread-id]}]
+  (let [url (->> (get @thread-attachments thread-id)
+                 vals
+                 (filter #(= "text/plain" 
+                             (:mimetype %)))
+                 first
+                 :url
+                 deref)
+        f (or (util/url->local url)
+              (util/url->file (str (random-uuid))
+                              url))]
+    (try
+      (with-open [rdr (io/reader f)]
+        (json/read rdr))
+      (catch Exception e
+        (throw (Exception. "Could not parse save file."))))
+
+    (with-open [rdr (io/reader f)]
+      (io/copy
+       rdr
+       (io/file "ttsim.json")))
+    "Save updated!"))
+
 (defn barf [{}]
   (throw (Exception. "barf")))
 
@@ -719,15 +746,17 @@
     "extract_text" #'extract-text
     "computer_enhance_image" #'computer-enhance-image
     "run_llava" #'run-llava
-    "resketch" #'resketch
+    ;; "resketch" #'resketch
+    "remove_image_background" #'remove-image-background
     "generate_music" #'generate-music
     "animate" #'animate
-    "dimentiate" #'dimentiate
+    ;; "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
     "emoji_image_url" #'emoji-image-url
     "feature_request" #'feature-request
+    "update_frosthaven_save" #'update-frosthaven-save
     ;; stonks
     "list_stonks" #'list-stonks
     "get_stonks_balance" #'get-stonks-balance
@@ -1189,7 +1218,7 @@
        {"prompt" {"type" "string",
                   "description" "A short description used to guide the generation of the music clips."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "resketch",
       "description" "Resketches an image guided by a prompt",
@@ -1202,6 +1231,18 @@
                      "description" "A url to an image to reference from the prompt"}
         "prompt" {"type" "string",
                   "description" "A description to guide the resketch"}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "remove_image_background",
+      "description" "Removes the background from the image at url",
+      "parameters"
+      {"type" "object",
+       "required" ["image_url"]
+       "properties"
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "A url to an image to reference from the prompt"}}}}}
 
     {"type" "function",
      "function"
@@ -1218,7 +1259,7 @@
                   "pattern" "^http.*"
                   "description" "A url to an image to animate."}}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "dimentiate",
       "description" "Creates a 3d polygon file from a 2d image url",
@@ -1260,6 +1301,15 @@
                  "enum" ["alloy", "echo", "fable", "onyx", "nova",  "shimmer"]
                  "description" "The voice to use when generating the speech."},},
        "required" ["text"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "update_frosthaven_save",
+      "description" "Updates the frosthaven save.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {}}}}
 
     {"type" "function",
      "function"
