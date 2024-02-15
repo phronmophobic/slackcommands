@@ -132,7 +132,8 @@
             handle? (and (not= (get event "user")
                                my-id)
                          (= "message" (get event "type"))
-                         (not (get event "subtype"))
+                         (or (= "file_share" (get event "subtype"))
+                             (not (get event "subtype")))
                          (not (str/starts-with? text "/")))]
         ;; (prn "handle?" handle?)
         ;; (clojure.pprint/pprint event)
