@@ -191,7 +191,8 @@
     output))
 
 (defn transcribe [{:strs [url]}]
-  (let [f (or (util/url->local url)
+  (let [url (util/maybe-download-slack-url url)
+        f (or (util/url->local url)
               (util/url->file (str (random-uuid))
                               url))
         _ (prn "transcribing" f (.exists f))
@@ -219,7 +220,8 @@
   ,)
 
 (defn link-reader [{:strs [url]}]
-  (let [response (http/get url
+  (let [url (util/maybe-download-slack-url url)
+        response (http/get url
                            {:as :stream})
         content-type (get-in response [:headers "Content-Type"])]
     (case content-type
@@ -282,7 +284,9 @@
                               urls]}]
   (let [prompt (if (and (seq urls)
                         (not= "dalle" using))
-                 (str (str/join " " urls) " "
+                 (str (str/join " "
+                                (map util/maybe-download-slack-url urls))
+                      " "
                       prompt)
                  prompt)]
     (case using
@@ -392,7 +396,8 @@
       "No thread found for that thread id.")))
 
 (defn examine-image [{:strs [url]}]
-  (let [objs (vision/find-objects url)]
+  (let [url (util/maybe-download-slack-url url)
+        objs (vision/find-objects url)]
     (if (seq objs)
       (let [img-url (util/save-and-upload-view
                      #(vision/highlight-objects url objs))
@@ -419,11 +424,11 @@
       "No objects found.")))
 
 (defn computer-enhance-image [{:strs [image_url]}]
-  (let [url (nubes/enhance image_url)]
+  (let [url (nubes/enhance (util/maybe-download-slack-url image_url))]
     (str "Here is the enhanced image:" url)))
 
 (defn slackify-gif [{:strs [url]}]
-  (let [url (gif/shrink-gif url)]
+  (let [url (gif/shrink-gif (util/maybe-download-slack-url url))]
     (str "Here is the slackified gif:" url)))
 
 (defn emoji-image-url [{:strs [emoji]}]
@@ -436,7 +441,7 @@
               :crop? (get m "crop" true)
               :fps (get m "fps" 24)}
         image-url (if image_url
-                    image_url
+                    (util/maybe-download-slack-url image_url)
                     (let [emoji (str/replace emoji #":" "")]
                       (emoji/emoji->url emoji)))]
     (if image-url
@@ -445,7 +450,7 @@
       "An image_url or emoji must be provided.")))
 
 (defn label-image [{:strs [url]}]
-  (let [labels (vision/label-image url)]
+  (let [labels (vision/label-image (util/maybe-download-slack-url url))]
     (if (seq labels)
       (str
        "Please find the labels below:\n"
@@ -461,7 +466,7 @@
       "No labels found.")))
 
 (defn extract-text [{:strs [url]}]
-  (let [text (vision/extract-text url)]
+  (let [text (vision/extract-text (util/maybe-download-slack-url url))]
     (if (seq text)
       (if (str/includes? text "\"")
         (str "The extracted text:\n" text)
@@ -469,17 +474,21 @@
       "No text found.")))
 
 (defn run-llava [{:strs [prompt image_url]}]
-  (nubes/run-llava prompt image_url))
+  (nubes/run-llava prompt (util/maybe-download-slack-url image_url)))
 
 
-(defn resketch [{:strs [prompt image_url]}]
-  (let [urls (nubes/generate-sketch prompt image_url)]
+#_(defn resketch [{:strs [prompt image_url]}]
+  (let [urls (nubes/generate-sketch prompt (util/maybe-download-slack-url image_url))]
     (str "Here are the images:\n"
          (str/join "\n"
                    (eduction
                     (map-indexed (fn [i url]
                                    (str i ". " url)))
                     urls)))))
+
+(defn remove-image-background [{:strs [image_url]}]
+  (let [url (nubes/remove-background (util/maybe-download-slack-url image_url))]
+    (str "Here are the image without the background: " url)))
 
 (defn generate-music [{:strs [prompt]}]
   (let [paths (nubes/generate-music prompt)]
@@ -492,7 +501,8 @@
 
 
 (defn animate [{:strs [image_urls]}]
-  (let [urls (nubes/stable-video-diffusion image_urls)]
+  (let [image_urls (map util/maybe-download-slack-url image_urls)
+        urls (nubes/stable-video-diffusion image_urls)]
     (str "Here are the animations:\n"
          (str/join "\n"
                    (eduction
@@ -519,10 +529,19 @@
                   :treat/id treat-id
                   :treat/description treat-description}]))
 
-(defn treat-log []
-  (db/q '[:find (pull ?e [*])
-          :where
-          [?e :event/type ::dispense-treat]]))
+(defn treat-stats []
+  (let [dispenses (->> (db/q '[:find (pull ?e [*])
+                               :where
+                               [?e :event/type ::dispense-treat]])
+                       (map first))
+        by-user-counts (->> dispenses
+                            (map :event/user)
+                            frequencies)
+        by-treat-counts (->> dispenses
+                             (map :treat/id)
+                             frequencies)]
+    [by-user-counts
+     by-treat-counts]))
 
 
 (defn request-treat [channel thread-id]
@@ -552,10 +571,13 @@
 			         "emoji" true,
 			         "text" "random"}
 		         "value" (wrap-callback 
-                                  (fn []
+                                  (fn [payload]
                                     (let [[emoji description] (rand-nth (seq treats))]
-                                     (deliver p 
-                                              (str emoji " " description)))))}]
+                                      (let [{:strs [id username name team_id]} (get payload "user")]
+                                        (log-treat id emoji description))
+                                      (deliver p 
+                                               (str emoji " " description))))
+                                  true)}]
                        (map (fn [[emoji description]]
                               {"type" "button",
 		               "text" {
@@ -563,8 +585,11 @@
 			               "emoji" true,
 			               "text" emoji}
 		               "value" (wrap-callback 
-                                        (fn []
-                                          (deliver p (str emoji " " description))))}))
+                                        (fn [payload]
+                                          (let [{:strs [id username name team_id]} (get payload "user")]
+                                            (log-treat id emoji description))
+                                          (deliver p (str emoji " " description)))
+                                        true)}))
                        treats)}
                 {"dispatch_action" true
                  "type" "input"
@@ -573,11 +598,14 @@
                             "action_id" 
                             (wrap-callback
                              (fn [payload]
-                               (deliver p
-                                        (-> payload
-                                            (get "actions")
-                                            first
-                                            (get "value"))))
+                               (let [treat-id "custom"
+                                     treat-description (-> payload
+                                                           (get "actions")
+                                                           first
+                                                           (get "value"))
+                                     {:strs [id username name team_id]} (get payload "user")]
+                                 (log-treat id treat-id treat-description)
+                                 (deliver p treat-description)))
                              true)}
                  "label" {"type" "plain_text",
                           "text" "custom treat",
@@ -608,8 +636,8 @@
       :else 
       (str "out popped a treat: " treat))))
 
-(defn dimentiate [{:strs [image_url]}]
-  (let [url (nubes/dimentiate image_url)]
+#_(defn dimentiate [{:strs [image_url]}]
+  (let [url (nubes/dimentiate (util/maybe-download-slack-url image_url))]
     (str "Here is the polygon file: " url)))
 
 
@@ -673,6 +701,29 @@
   (let [info (alpaca/account)]
     (:effective_buying_power info)))
 
+(defn update-frosthaven-save [{:keys [assistant/thread-id]}]
+  (let [url (->> (get @thread-attachments thread-id)
+                 vals
+                 (filter #(= "text/plain" 
+                             (:mimetype %)))
+                 first
+                 :url
+                 deref)
+        f (or (util/url->local url)
+              (util/url->file (str (random-uuid))
+                              url))]
+    (try
+      (with-open [rdr (io/reader f)]
+        (json/read rdr))
+      (catch Exception e
+        (throw (Exception. "Could not parse save file."))))
+
+    (with-open [rdr (io/reader f)]
+      (io/copy
+       rdr
+       (io/file "ttsim.json")))
+    "Save updated!"))
+
 (defn barf [{}]
   (throw (Exception. "barf")))
 
@@ -695,15 +746,17 @@
     "extract_text" #'extract-text
     "computer_enhance_image" #'computer-enhance-image
     "run_llava" #'run-llava
-    "resketch" #'resketch
+    ;; "resketch" #'resketch
+    "remove_image_background" #'remove-image-background
     "generate_music" #'generate-music
     "animate" #'animate
-    "dimentiate" #'dimentiate
+    ;; "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
     "emoji_image_url" #'emoji-image-url
     "feature_request" #'feature-request
+    "update_frosthaven_save" #'update-frosthaven-save
     ;; stonks
     "list_stonks" #'list-stonks
     "get_stonks_balance" #'get-stonks-balance
@@ -1165,7 +1218,7 @@
        {"prompt" {"type" "string",
                   "description" "A short description used to guide the generation of the music clips."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "resketch",
       "description" "Resketches an image guided by a prompt",
@@ -1178,6 +1231,18 @@
                      "description" "A url to an image to reference from the prompt"}
         "prompt" {"type" "string",
                   "description" "A description to guide the resketch"}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "remove_image_background",
+      "description" "Removes the background from the image at url",
+      "parameters"
+      {"type" "object",
+       "required" ["image_url"]
+       "properties"
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "A url to an image to reference from the prompt"}}}}}
 
     {"type" "function",
      "function"
@@ -1194,7 +1259,7 @@
                   "pattern" "^http.*"
                   "description" "A url to an image to animate."}}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "dimentiate",
       "description" "Creates a 3d polygon file from a 2d image url",
@@ -1236,6 +1301,15 @@
                  "enum" ["alloy", "echo", "fable", "onyx", "nova",  "shimmer"]
                  "description" "The voice to use when generating the speech."},},
        "required" ["text"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "update_frosthaven_save",
+      "description" "Updates the frosthaven save.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {}}}}
 
     {"type" "function",
      "function"
