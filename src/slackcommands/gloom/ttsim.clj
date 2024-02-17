@@ -115,7 +115,7 @@
                              (when (seq (get state k))
                                i))))
                    last)
-        prosperity-points (->> (range 1 10)
+        prosperity-points (->> (range 1 133)
                                (keep (fn [i]
                                        (let [k (str "prosperity" i)]
                                          (when (seq (get state k))
@@ -318,5 +318,6 @@
                                       purchasable-snap)}))
 (comment
   (def my-game (default-game))
+  (def my-game (latest-game))
   
 ,)
