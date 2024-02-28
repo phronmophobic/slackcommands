@@ -26,13 +26,15 @@
        (s3/put-object bucket
                       key
                       is
-                      metadata))))
+                      metadata))
+     (str "https://" "aimages.smith.rocks/" fname)))
   ([fname]
    (let [f (io/file fname)
          key (.getName f)]
      (s3/put-object bucket
                     key
-                    f))))
+                    f)
+     (str "https://" "aimages.smith.rocks/" fname))))
 
 (def aimage-dir
   (doto (io/file "aimages")
