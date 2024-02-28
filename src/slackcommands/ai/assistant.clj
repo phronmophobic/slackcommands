@@ -343,6 +343,13 @@
   "Thank you for your feature request. It has been logged.")
 
 
+(defn publish-html [{:strs [html]}]
+  (util/save-and-upload-stream
+   (str (random-uuid) ".html")
+   (java.io.ByteArrayInputStream. 
+    (.getBytes html "utf-8"))))
+
+
 (defn list-attachments [{:strs [type]
                          :keys [assistant/thread-id]}]
   (let [pred (if type
@@ -760,6 +767,7 @@
     "treat_dispenser" #'treat-dispenser
     "emoji_image_url" #'emoji-image-url
     "feature_request" #'feature-request
+    "publish_html" #'publish-html
     "update_frosthaven_save" #'update-frosthaven-save
     ;; stonks
     "list_stonks" #'list-stonks
@@ -1145,6 +1153,17 @@
        {"url" {"type" "string",
                "pattern" "^http.*"
                "description" "A url to a gif to slackify."}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "publish_html",
+      "description" "Publishes an html page and returns the url.",
+      "parameters"
+      {"type" "object",
+       "required" ["html"]
+       "properties"
+       {"html" {"type" "string",
+                "description" "An html string to publish."}}}}}
 
     {"type" "function",
      "function"
