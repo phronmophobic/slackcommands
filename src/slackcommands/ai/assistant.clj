@@ -796,7 +796,7 @@
         (when (not (string? output))
           (throw (ex-info "Invalid tool-fn output. Must be string."
                           {:tool-fn tool-fn
-                           :argumnets arguments
+                           :arguments arguments
                            :tool-name name
                            :output output})))
         {:tool_call_id id
