@@ -382,15 +382,12 @@
     (let [approved? @p]
       (if approved?
         (do
-          (chat/post-message slack/conn
-                             channel
+          (chat/post-message slack/conn channel
                              markdown
-                             {"blocks" 
-                              [{
-                                "type" "section",
-                                "text" {
-	                                "type" "mrkdwn",
-	                                "text" markdown}}]})
+                             {"blocks" (json/write-str
+                                        [{"type" "section"
+                                          "text" {"type" "mrkdwn"
+                                                  "text" markdown}}])})
          "Message sent.")
         "Your request to send to main was denied."))))
 
