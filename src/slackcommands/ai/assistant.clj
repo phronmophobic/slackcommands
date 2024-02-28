@@ -73,6 +73,14 @@
   (subs s 0 (min (count s)
                  n)))
 
+(defn prn-truncate
+  ([o]
+   (prn-truncate o 5000))
+  ([o n]
+   (println
+    (truncate (pr-str o)
+              n))))
+
 (defonce wrapped-callbacks
   (atom {}))
 (defn callback-wrapper [payload {:keys [id payload?]}]
@@ -83,7 +91,7 @@
           (cb payload)
           (cb))
         (catch Exception e
-          (prn e)))))
+          (prn-truncate e)))))
   (util/delete-message payload))
 (defn wrap-callback
   ([f]
@@ -200,7 +208,6 @@
             {:model "whisper-1"
              :file (fix-audio f)}
             {:api-key openai-key})]
-    (prn "transcription" response)
     (json/write-str response)
     #_(:text response)))
 
@@ -770,7 +777,8 @@
 (defn run-tool* [ctx
                  {:keys [id type function]
                   :as tool-call}]
-  (prn "running" tool-call)
+  (print "running ")
+  (prn-truncate tool-call)
   (try
     (let [{:keys [name arguments]} function
           arguments (merge (json/read-str arguments)
@@ -789,7 +797,7 @@
         {:tool_call_id id
          :output output}))
     (catch Throwable e
-      (clojure.pprint/pprint e)
+      (prn-truncate e)
       {:tool_call_id id
        :output "An error occurred while running this tool."})))
 
