@@ -29,6 +29,24 @@
     (map block->text)
     (get block "elements"))))
 
+(defmethod block->text "rich_text_quote" [block]
+  (let [txt (str/join
+             (eduction
+              (map block->text)
+              (get block "elements")))]
+    (str/join
+     "\n"
+     (eduction
+      (map #(str "> " %))
+      (str/split-lines txt)))))
+
+
+(defmethod block->text "context" [block]
+  (str/join
+   (eduction
+    (map block->text)
+    (get block "elements"))))
+
 (defmethod block->text "rich_text_preformatted" [block]
   (str/join
    (eduction
