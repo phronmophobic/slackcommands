@@ -1179,7 +1179,7 @@
         "prompt" {"type" "string",
                   "description" "A question about the provided image url."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "computer_enhance_image",
       "description" "Enhances an image to be less blurry.",
