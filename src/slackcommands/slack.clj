@@ -67,6 +67,9 @@
 (defmethod block->text "text" [block]
   (get block "text"))
 
+(defmethod block->text "channel" [block]
+  (get block "channel_id"))
+
 (defmethod block->text nil [block]
   (prn block)
   "")
