@@ -398,6 +398,34 @@
          "Message sent.")
         "Your request to send to main was denied."))))
 
+(defn send-to-channel [{:strs [markdown channel_id]
+                        :keys [slack/channel
+                               slack/thread-id]}]
+  ;; (slack/send-to-main markdown)
+  (let [p (promise)]
+    (prompt channel thread-id ":this-is-fine-but-with-ai: would like to send a message."
+            [{:text "Approve"
+              :style :primary
+              :action (wrap-callback
+                       (fn []
+                         (deliver p true)))}
+             {:text "Deny"
+              :style :danger
+              :action (wrap-callback
+                       (fn []
+                         (deliver p false)))}])
+    (let [approved? @p]
+      (if approved?
+        (do
+          (chat/post-message slack/conn channel_id
+                             markdown
+                             {"blocks" (json/write-str
+                                        [{"type" "section"
+                                          "text" {"type" "mrkdwn"
+                                                  "text" markdown}}])})
+         "Message sent.")
+        "Your request was denied."))))
+
 
 (defn retrieve-thread [{:strs [thread_id]}]
   (let [[_ channel-id thread-id] (str/split thread_id #"-")]
@@ -751,6 +779,7 @@
     "list_attachments" #'list-attachments
     "read_url_link" #'link-reader
     "send_to_main" #'send-to-main
+    "send_to_channel" #'send-to-channel
     "examine_image" #'examine-image
     "label_image" #'label-image
     "rustle_image" #'rustle-image
@@ -1085,6 +1114,20 @@
          "properties"
          {"markdown" {"type" "string",
                       "description" "The markdown formatted message to send to the main slack channel."}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "send_to_channel",
+      "description" "Sends a markdown message to a specific channel",
+      "parameters"
+      {"type" "object",
+       "required" ["markdown"
+                   "channel_id"]
+       "properties"
+       {"markdown" {"type" "string",
+                    "description" "The markdown formatted message to send to the main slack channel."}
+        "channel_id" {"type" "string",
+                      "description" "The id of the channel to send the message to."}}}}}
 
     {"type" "function",
      "function"
