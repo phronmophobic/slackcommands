@@ -1579,7 +1579,7 @@
                           (async/close! out-ch))
                         true)
                       (catch Exception e
-                        (clojure.pprint/pprint e)
+                        (prn-truncate e)
                         ;; we had an error, but we'll loop anyway.
                         true))
                     ;; channel closed
