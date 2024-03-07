@@ -69,7 +69,8 @@
 
 (declare content-type->suffix
          save-and-upload-stream)
-(defn maybe-download-slack-url [url]
+
+(defn maybe-download-slack-url* [url]
   (if (str/starts-with? url "https://files.slack.com/")
     (let [response (client/get 
                     url
@@ -82,6 +83,9 @@
           public-url (save-and-upload-stream fname (:body response))]
       public-url)
     url))
+(let [f (memoize maybe-download-slack-url*)]
+  (defn maybe-download-slack-url [url]
+    (f url)))
 
 (defn url->file [fname url]
   (let [f (io/file aimage-dir fname)]
