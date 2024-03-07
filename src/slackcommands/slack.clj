@@ -144,6 +144,28 @@
                     (blocks->text (get msg "blocks")))))
         (get replies "messages"))))))
 
+(defn thread-attachments [channel-id thread-id]
+  (let [response (conversations/replies
+                  conn
+                  channel-id
+                  thread-id)
+        messages (:messages response)
+        files (->> messages
+                   (mapcat :files)
+                   (map (fn [finfo]
+                          {:url (:url_private finfo)
+                           :name (:name finfo)
+                           :mimetype (:mimetype finfo)})))
+        attachments (->> messages
+                         (mapcat :attachments)
+                         (keep (fn [info]
+                                 (when-let [url (:image_url info)]
+                                   {:url url
+                                    :name (:fallback info)}))))]
+    (concat
+     files
+     attachments)))
+
 (defn message-update [connection channel-id timestamp opts]
   (slack-request connection "chat.update" 
                  (merge {"ts" timestamp "channel" channel-id}

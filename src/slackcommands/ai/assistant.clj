@@ -350,22 +350,25 @@
     (.getBytes html "utf-8"))))
 
 
-(defn list-attachments [{:strs [type]
-                         :keys [assistant/thread-id]}]
-  (let [pred (if type
-               (case type
-                 "audio" util/audio?
-                 "video" util/video?
-                 "image" util/image?
-                 "plaintext" util/plaintext?)
-               (constantly true))
+(defn list-attachments [{:keys [slack/channel
+                                slack/thread-id]}]
+  (let [;; pred (if type
+        ;;        (case type
+        ;;          "audio" util/audio?
+        ;;          "video" util/video?
+        ;;          "image" util/image?
+        ;;          "plaintext" util/plaintext?)
+        ;;        (constantly true))
         urls
-        (->> (get @thread-attachments thread-id)
+        (->> (slack/thread-attachments channel thread-id)
+             (map util/maybe-download-slack-url))
+        #_(->> (get @thread-attachments thread-id)
              vals
              (filter #(pred (:mimetype %)))
              (map :url)
              (map deref))]
-    (if (seq urls)
+    (json/write-str urls)
+    #_(if (seq urls)
       (str/join "\n" urls)
       "No matching attachments.")))
 
@@ -1114,13 +1117,11 @@
     {"type" "function",
      "function"
      {"name" "list_attachments",
-      "description" "List attachments of the given type.",
+      "description" "List attachments of the current thread.",
       "parameters"
       {"type" "object",
        "properties"
-       {"type" {"type" "string",
-                "enum" ["audio", "video", "image", "plaintext"]
-                "description" "The type of the attachment."},},}}}
+       {}}}}
 
     {"type" "function",
        "function"
