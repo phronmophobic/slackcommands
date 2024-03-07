@@ -568,20 +568,30 @@
                   :treat/id treat-id
                   :treat/description treat-description}]))
 
-(defn treat-stats []
+(defn treat-stats* []
   (let [dispenses (->> (db/q '[:find (pull ?e [*])
                                :where
                                [?e :event/type ::dispense-treat]])
                        (map first))
         by-user-counts (->> dispenses
                             (map :event/user)
+                            (map slack/user-info)
+                            (map :profile)
+                            (map (fn [profile]
+                                   (let [name (:display_name profile)]
+                                     (if (seq name)
+                                       name
+                                       (:real_name profile)))))
                             frequencies)
         by-treat-counts (->> dispenses
                              (map :treat/id)
                              frequencies)]
-    [by-user-counts
-     by-treat-counts]))
+    {:by-user-counts by-user-counts
+     :by-treat-counts by-treat-counts}))
 
+(defn treat-stats [{}]
+  (json/write-str 
+   (treat-stats*)))
 
 (defn request-treat [channel thread-id]
   (let [p (promise)
@@ -794,6 +804,7 @@
     "retrieve_thread" #'retrieve-thread
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
+    "treat_stats" #'treat-stats
     "emoji_image_url" #'emoji-image-url
     "feature_request" #'feature-request
     "publish_html" #'publish-html
@@ -1146,6 +1157,14 @@
      "function"
      {"name" "treat_dispenser",
       "description" "When you've done a good job, the treat dispenser allows the prompter to offer you a treat.",
+      "parameters"
+      {"type" "object",
+       "properties" {}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "treat_stats",
+      "description" "Lists the historical treat dispensing stats",
       "parameters"
       {"type" "object",
        "properties" {}}}}
