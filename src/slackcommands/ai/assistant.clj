@@ -587,7 +587,11 @@
                                        (:real_name profile)))))
                             frequencies)
         by-treat-counts (->> dispenses
-                             (map :treat/id)
+                             (map (fn [event]
+                                    (let [id (:treat/id event)]
+                                      (if (= id "custom")
+                                        (:treat/description event)
+                                        id))))
                              frequencies)]
     {:by-user-counts by-user-counts
      :by-treat-counts by-treat-counts}))
