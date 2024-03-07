@@ -2,6 +2,7 @@
   (:require [clj-slack.core :refer [slack-request]]
             [clj-slack.conversations :as conversations]
             [clj-slack.emoji :as emoji]
+            [clj-slack.users :as users]
             [clj-slack.files :as files]
             [clojure.java.io :as io]
             [clj-slack.chat :as chat]
@@ -156,6 +157,13 @@
                    (:name %)))
        first
        :id))
+
+(defn user-info
+  "Interesting keys
+  :display_name
+  "
+  [uid]
+  (:user (users/info conn uid)))
 
 (defn list-emoji []
   (:emoji (emoji/list conn)))
