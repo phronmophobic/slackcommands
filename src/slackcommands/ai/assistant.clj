@@ -477,15 +477,18 @@
                      :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
               :transparent? (get m "transparent" true)
-              :crop? (get m "crop" true)
+              ;; :crop? (get m "crop" true)
               :fps (get m "fps" 24)}
         image-url (if image_url
                     (util/maybe-download-slack-url image_url)
                     (let [emoji (str/replace emoji #":" "")]
                       (emoji/emoji->url emoji)))]
     (if image-url
-      (let [url (gif/rustle-image image-url opts)]
-        (str "Here is the rustled image:" url))
+      (let [url-cropped (gif/rustle-image image-url (assoc opts :crop? true))
+            url-uncropped (gif/rustle-image image-url opts)]
+        (str "Here are the rustled images:\n" 
+             "cropped: " url-cropped "\n"
+             "without cropping: "url-uncropped "\n"))
       "An image_url or emoji must be provided.")))
 
 (defn label-image [{:strs [url]}]
@@ -1269,7 +1272,7 @@
         "transparent" {"type" "boolean"
                        "description" "Whether the gif should be transparent or opaque"
                        "default" true}
-        "crop" {"type" "boolean"
+        #_#_"crop" {"type" "boolean"
                 "description" "Whether the gif should be cropped"
                 "default" true}
         "alpha_threshold" {"type" "integer"
