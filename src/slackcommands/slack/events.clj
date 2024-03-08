@@ -72,13 +72,14 @@
         text (if audio-prompt?
                "Transcribe the attached audio and follow the instructions."
                text)]
-    ;; (clojure.pprint/pprint js)
+    ;; (clojure.pprint/pprint event)
     (async/thread
       (prn "responding to" ch thread-id text)
       (assistant/respond
        {:ch ch
         :slack/thread-id thread-id
         :slack/channel channel
+        :slack/new-thread? (not thread-ts)
         :prompt text
         :attachments attachments
         :status-ch status-ch}))

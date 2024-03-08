@@ -1624,18 +1624,26 @@
 (defn respond [{:keys [ch
                        slack/thread-id
                        slack/channel
+                       slack/new-thread?
                        prompt
                        status-ch
                        attachments]
                 :as prompt-info}]
   (try
-    (swap! assistant-threads
-           (fn [m]
-             (if (get m thread-id)
-               m
-               (assoc m thread-id
-                      (new-thread prompt-info)))))
-    (let [prompt-ch (get @assistant-threads thread-id)]
+    (let [[old _] (swap-vals! assistant-threads
+                              (fn [m]
+                                (if (get m thread-id)
+                                  m
+                                  (assoc m thread-id
+                                         (new-thread prompt-info)))))
+          new-assistant-thread? (not (get old thread-id))
+          prompt-info (if (and new-assistant-thread?
+                               (not new-thread?))
+                        (update prompt-info :prompt
+                                (fn [prompt]
+                                  (str prompt "\nRetrieve the current thread for context.")))
+                        prompt-info)
+          prompt-ch (get @assistant-threads thread-id)]
       (async/put! prompt-ch prompt-info))))
 
 
