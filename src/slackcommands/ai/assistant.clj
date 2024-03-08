@@ -647,13 +647,19 @@
     {:by-user-counts by-user-counts
      :by-treat-counts by-treat-counts}))
 
-(defn treat-stats [{}]
+(defn treat-stats [{:keys [slack/channel slack/thread-id]}]
   (let [stats (treat-stats*)]
-    (str "Image of the treat stats: "
-         (util/save-and-upload-view
-          #(treat-stats-ui* stats))
-         "\njson data:\n"
-         (json/write-str stats))))
+    (chat/post-message slack/conn
+                    channel
+                    nil
+                    {"thread_ts" thread-id
+                     "blocks" 
+                     [{"type" "section"
+                       "text" {"type" "mrkdwn"
+                               "text" 
+                               (util/save-and-upload-view
+                                #(treat-stats-ui* stats))}}]})
+    (json/write-str stats)))
 
 (defn request-treat [channel thread-id]
   (let [p (promise)
