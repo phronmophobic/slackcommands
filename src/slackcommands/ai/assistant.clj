@@ -695,7 +695,10 @@
   (let [treat (request-treat channel thread-id)]
     (cond 
       (#{::timeout ::shame} treat)
-      (str "The treat dispenser is locked. Did you get permission to take a treat?")
+      ;; (str "The treat dispenser is locked. Did you get permission to take a treat?")
+      (let [[emoji description] (rand-nth (seq treats))]
+        (str "The treat dispenser is locked, but you have a key. You use the key and find a " 
+             (str emoji " " description)))
 
       :else 
       (str "out popped a treat: " treat))))
