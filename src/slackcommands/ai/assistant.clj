@@ -579,6 +579,49 @@
                   :treat/id treat-id
                   :treat/description treat-description}]))
 
+(def treat-stats-bg "https://aimages.smith.rocks/bdcd2d20-b94f-4b8a-b7fb-dd256e803bbd.jpg")
+(defn shadowed-label [s]
+  (let [lbl (ui/label s)]
+    [(ui/with-color [1 1 1]
+       (ui/translate 1 1
+                     lbl)
+       (ui/translate -1 1
+                     lbl)
+       (ui/translate 1 -1
+                     lbl)
+       (ui/translate -1 -1
+                     lbl))
+     lbl]))
+
+(defn treat-stats-ui* [stats]
+  (let [
+        by-user
+        (apply
+         ui/vertical-layout
+         (for [[user count] (:by-user-counts stats)]
+           (shadowed-label (str user ": " count))))
+        by-treat
+        (apply
+         ui/vertical-layout
+         (for [[treat count] (:by-treat-counts stats)]
+           (let [treat-view (if (re-matches #"^:.*:$" treat)
+                              (ui/image
+                               (io/as-url (emoji/emoji->url (str/replace treat #":" "")))
+                               [25 nil])
+                              (shadowed-label treat))]
+             (ui/horizontal-layout
+              treat-view
+              (ui/spacer 10)
+              (shadowed-label count)))))
+        body (ui/padding 5
+                         (ui/vertical-layout
+                          by-user
+                          by-treat))
+        bg (ui/image (io/as-url treat-stats-bg)
+                     [nil (ui/height body)])]
+    [bg
+     body]))
+
 (defn treat-stats* []
   (let [dispenses (->> (db/q '[:find (pull ?e [*])
                                :where
@@ -605,8 +648,12 @@
      :by-treat-counts by-treat-counts}))
 
 (defn treat-stats [{}]
-  (json/write-str 
-   (treat-stats*)))
+  (let [stats (treat-stats*)]
+    (str "Image of the treat stats: "
+         (util/save-and-upload-view
+          #(treat-stats-ui* my-stats))
+         "\njson data:\n"
+         (json/write-str stats))))
 
 (defn request-treat [channel thread-id]
   (let [p (promise)
