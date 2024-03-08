@@ -651,7 +651,7 @@
   (let [stats (treat-stats*)]
     (str "Image of the treat stats: "
          (util/save-and-upload-view
-          #(treat-stats-ui* my-stats))
+          #(treat-stats-ui* stats))
          "\njson data:\n"
          (json/write-str stats))))
 
