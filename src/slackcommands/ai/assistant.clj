@@ -691,7 +691,7 @@
                      (:channel prompt-message))))
     treat))
 
-(defn treat-dispenser [{:keys [slack/channel :slack/thread-id]}]
+(defn treat-dispenser [{:keys [slack/channel slack/thread-id]}]
   (let [treat (request-treat channel thread-id)]
     (cond 
       (#{::timeout ::shame} treat)
