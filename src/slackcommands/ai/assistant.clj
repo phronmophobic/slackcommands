@@ -430,8 +430,13 @@
         "Your request was denied."))))
 
 
-(defn retrieve-thread [{:strs [thread_id]}]
-  (let [[_ channel-id thread-id] (str/split thread_id #"-")]
+(defn retrieve-thread [{:strs [thread_id]
+                        :keys [slack/channel slack/thread-id]}]
+  (let [[channel-id thread-id]
+        (if thread_id
+          (let [[_ channel-id thread-id] (str/split thread_id #"-")]
+            [channel-id thread-id])
+          [channel thread-id])]
     (prn channel-id thread-id)
     (if-let [s (slack/retrieve-thread channel-id thread-id)]
       (str "Below is a transcript of the thread:\n\n" s)
@@ -1151,10 +1156,10 @@
     {"type" "function",
      "function"
      {"name" "retrieve_thread",
-      "description" "Returns the transcript for the thread with the given thread id.",
+      "description" "Returns the transcript for the thread with the given thread id. If no thread_id provided, returns the transcript for the current thread.",
       "parameters"
       {"type" "object",
-       "required" ["thread_id"]
+       ;; "required" ["thread_id"]
        "properties"
        {"thread_id" {"type" "string",
                      "pattern" "^thread-[^-]+-[^-]+$"
