@@ -477,15 +477,18 @@
                      :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
               :transparent? (get m "transparent" true)
-              :crop? (get m "crop" true)
+              ;; :crop? (get m "crop" true)
               :fps (get m "fps" 24)}
         image-url (if image_url
                     (util/maybe-download-slack-url image_url)
                     (let [emoji (str/replace emoji #":" "")]
                       (emoji/emoji->url emoji)))]
     (if image-url
-      (let [url (gif/rustle-image image-url opts)]
-        (str "Here is the rustled image:" url))
+      (let [url-cropped (gif/rustle-image image-url (assoc opts :crop? true))
+            url-uncropped (gif/rustle-image image-url opts)]
+        (str "Here are the rustled images:\n" 
+             "cropped: " url-cropped "\n"
+             "without cropping: "url-uncropped "\n"))
       "An image_url or emoji must be provided.")))
 
 (defn label-image [{:strs [url]}]
@@ -568,20 +571,34 @@
                   :treat/id treat-id
                   :treat/description treat-description}]))
 
-(defn treat-stats []
+(defn treat-stats* []
   (let [dispenses (->> (db/q '[:find (pull ?e [*])
                                :where
                                [?e :event/type ::dispense-treat]])
                        (map first))
         by-user-counts (->> dispenses
                             (map :event/user)
+                            (map slack/user-info)
+                            (map :profile)
+                            (map (fn [profile]
+                                   (let [name (:display_name profile)]
+                                     (if (seq name)
+                                       name
+                                       (:real_name profile)))))
                             frequencies)
         by-treat-counts (->> dispenses
-                             (map :treat/id)
+                             (map (fn [event]
+                                    (let [id (:treat/id event)]
+                                      (if (= id "custom")
+                                        (:treat/description event)
+                                        id))))
                              frequencies)]
-    [by-user-counts
-     by-treat-counts]))
+    {:by-user-counts by-user-counts
+     :by-treat-counts by-treat-counts}))
 
+(defn treat-stats [{}]
+  (json/write-str 
+   (treat-stats*)))
 
 (defn request-treat [channel thread-id]
   (let [p (promise)
@@ -794,6 +811,7 @@
     "retrieve_thread" #'retrieve-thread
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
+    "treat_stats" #'treat-stats
     "emoji_image_url" #'emoji-image-url
     "feature_request" #'feature-request
     "publish_html" #'publish-html
@@ -1152,6 +1170,14 @@
 
     {"type" "function",
      "function"
+     {"name" "treat_stats",
+      "description" "Lists the historical treat dispensing stats",
+      "parameters"
+      {"type" "object",
+       "properties" {}}}}
+
+    {"type" "function",
+     "function"
      {"name" "examine_image",
       "description" "Returns an image with the found objects and a table with the name, score, and id for each object found.",
       "parameters"
@@ -1250,7 +1276,7 @@
         "transparent" {"type" "boolean"
                        "description" "Whether the gif should be transparent or opaque"
                        "default" true}
-        "crop" {"type" "boolean"
+        #_#_"crop" {"type" "boolean"
                 "description" "Whether the gif should be cropped"
                 "default" true}
         "alpha_threshold" {"type" "integer"

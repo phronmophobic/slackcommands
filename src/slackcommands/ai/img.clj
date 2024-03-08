@@ -52,8 +52,9 @@
             "pattern" "^http.*"
             "description" "A url to an image."}}}})
 (defmethod img-op* "resize_image" [{:strs [url width height]}]
-  (ui/image (io/as-url url)
-            [width height]))
+  (let [url (util/maybe-download-slack-url url)]
+    (ui/image (io/as-url url)
+              [width height])))
 
 
 
@@ -106,12 +107,13 @@
             "pattern" "^http.*"
             "description" "A url to an image."}}}})
 (defmethod img-op* "crop_image" [{:strs [url x y width height]}]
-  (ui/scissor-view
-   [0 0]
-   [width height]
-   (ui/translate
-    (- (or x 0)) (- (or y 0))
-    (ui/image (io/as-url url)))))
+  (let [url (util/maybe-download-slack-url url)]
+    (ui/scissor-view
+     [0 0]
+     [width height]
+     (ui/translate
+      (- (or x 0)) (- (or y 0))
+      (ui/image (io/as-url url))))))
 
 
 ;; 3. Rotate
@@ -237,10 +239,12 @@
                     "description" "The url to the image to be overlaid on top."}}}})
 
 (defmethod img-op* "overlay_image" [{:strs [url overlay_url opacity position]}]
-  [(ui/image (io/as-url url))
-   (ui/translate
-    (get position "x") (get position "y")
-    (ui/image (io/as-url overlay_url) nil opacity))])
+  (let [url (util/maybe-download-slack-url url)
+        overlay_url (util/maybe-download-slack-url overlay_url)]
+    [(ui/image (io/as-url url))
+     (ui/translate
+      (get position "x") (get position "y")
+      (ui/image (io/as-url overlay_url) nil opacity))]))
 
 
 (defschema
@@ -264,8 +268,9 @@
             "description" "Number of pixels to add to the bottom."}}}})
 
 (defmethod img-op* "pad_image" [{:strs [url left top right bottom] :as m}]
-  (ui/padding (get m "top" 0) (get m "right" 0) (get m "bottom" 0) (get m "left" 0) 
-              (ui/image (io/as-url url))))
+  (let [url (util/maybe-download-slack-url url)]
+    (ui/padding (get m "top" 0) (get m "right" 0) (get m "bottom" 0) (get m "left" 0) 
+                (ui/image (io/as-url url)))))
 
 ;; 7. Opacity
 ;; ```json
@@ -342,7 +347,8 @@
             "pattern" "^http.*"
             "description" "A url to an image."}}}})
 (defn measure-image [{:strs [url]}]
-  (let [[w h] (ui/bounds
+  (let [url (util/maybe-download-slack-url url)
+        [w h] (ui/bounds
                (ui/image (io/as-url url)))]
     (str "width: " w "\n"
          "height: " h)))

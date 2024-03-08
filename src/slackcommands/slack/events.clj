@@ -18,6 +18,22 @@
 
 (defonce sent-msg-ids (atom #{}))
 
+(defn format-response [text]
+  (try
+    (let [matches (str/replace text
+                               #"\@U[A-Za-z0-9]+"
+                               (fn [match]
+                                 (let [ ;; chop off @
+                                       uid (subs match 1)
+                                       username (slack/username uid)]
+                                   (if (seq username)
+                                     username
+                                     match))))]
+      matches)
+    (catch Exception e
+      (prn "Exception formatting response!")
+      text)))
+
 (defn handle-event [event]
   (let [thread-ts (get event "thread_ts")
         
@@ -100,15 +116,16 @@
             (when msg
               (let [[old _] (swap-vals! sent-msg-ids conj id)]
                 (when (not (contains? old id))
-                  (doseq [chunk (partition-all 2999 text)
-                          :let [subresponse (apply str chunk)]]
-                    (chat/post-message slack/conn channel
-                                       subresponse
-                                       {"thread_ts" thread-id
-                                        "blocks" (json/write-str
-                                                  [{"type" "section"
-                                                    "text" {"type" "mrkdwn"
-                                                            "text" subresponse}}])})))
+                  (let [text (format-response text)]
+                    (doseq [chunk (partition-all 2999 text)
+                            :let [subresponse (apply str chunk)]]
+                      (chat/post-message slack/conn channel
+                                         subresponse
+                                         {"thread_ts" thread-id
+                                          "blocks" (json/write-str
+                                                    [{"type" "section"
+                                                      "text" {"type" "mrkdwn"
+                                                              "text" subresponse}}])}))))
                 (recur false)))))))))
 
 (defn events-api [req]

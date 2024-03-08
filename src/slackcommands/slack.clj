@@ -158,12 +158,29 @@
        first
        :id))
 
-(defn user-info
+(defn user-info*
   "Interesting keys
-  :display_name
+  :profile {:display_name}
   "
   [uid]
   (:user (users/info conn uid)))
+
+(let [f (memoize user-info*)]
+  (defn user-info
+    "Interesting keys
+  :profile {:display_name}
+  "
+    [uid]
+    (f uid)))
+
+
+(defn username [uid]
+  (let [uinfo (user-info uid)
+        profile (:profile uinfo)
+        name (:display_name profile)]
+    (if (seq name)
+      name
+      (:real_name profile))))
 
 (defn list-emoji []
   (:emoji (emoji/list conn)))
