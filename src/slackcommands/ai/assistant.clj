@@ -422,10 +422,9 @@
         (do
           (chat/post-message slack/conn channel_id
                              markdown
-                             {"blocks" (json/write-str
-                                        [{"type" "section"
-                                          "text" {"type" "mrkdwn"
-                                                  "text" markdown}}])})
+                             {"blocks" [{"type" "section"
+                                         "text" {"type" "mrkdwn"
+                                                 "text" markdown}}]})
          "Message sent.")
         "Your request was denied."))))
 
