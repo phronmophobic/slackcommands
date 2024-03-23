@@ -259,7 +259,7 @@
    )
 
   
-  (slack-chat/post-message 
+  (chat/post-message
    slack/conn
    channel-id 
    ":waitingcat:")
