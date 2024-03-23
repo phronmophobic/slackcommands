@@ -835,14 +835,15 @@
   (let [info (alpaca/account)]
     (:effective_buying_power info)))
 
-(defn update-frosthaven-save [{:keys [assistant/thread-id]}]
-  (let [url (->> (get @thread-attachments thread-id)
-                 vals
-                 (filter #(= "text/plain" 
-                             (:mimetype %)))
-                 first
-                 :url
-                 deref)
+(defn update-frosthaven-save [{:keys [slack/channel
+                                slack/thread-id]}]
+  (let [url (->> 
+             (slack/thread-attachments channel thread-id)
+             (filter #(str/ends-with? (:url %) ".json"))
+             first
+             :url
+             util/maybe-download-slack-url)
+        _ (prn "save url" url)
         f (or (util/url->local url)
               (util/url->file (str (random-uuid))
                               url))]
