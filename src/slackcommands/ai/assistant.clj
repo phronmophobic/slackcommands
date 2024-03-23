@@ -613,9 +613,15 @@
          ui/vertical-layout
          (for [[treat count] (:by-treat-counts stats)]
            (let [treat-view (if (re-matches #"^:.*:$" treat)
-                              (ui/image
-                               (io/as-url (emoji/emoji->url (str/replace treat #":" "")))
-                               [25 nil])
+                              (try
+                                (ui/image
+                                 (io/as-url (emoji/emoji->url (str/replace treat #":" "")))
+                                 [25 nil])
+                                (catch Exception e
+                                  (let [data (ex-data e)]
+                                    (if-let [emoji (:emoji data)]
+                                      (ui/label emoji)
+                                      (throw e)))))
                               (shadowed-label treat))]
              (ui/horizontal-layout
               treat-view
