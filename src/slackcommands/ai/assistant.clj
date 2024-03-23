@@ -589,7 +589,13 @@
 
 (def treat-stats-bg "https://aimages.smith.rocks/bdcd2d20-b94f-4b8a-b7fb-dd256e803bbd.jpg")
 (defn shadowed-label [s]
-  (let [lbl (ui/label s)]
+  (let [s (str/join
+           "\n"
+           (eduction
+            (map #(apply str %))
+            (partition-all 70
+                           (str s))))
+        lbl (ui/label s)]
     [(ui/with-color [1 1 1]
        (ui/translate 1 1
                      lbl)
@@ -620,7 +626,7 @@
                                 (catch Exception e
                                   (let [data (ex-data e)]
                                     (if-let [emoji (:emoji data)]
-                                      (ui/label emoji)
+                                      (shadowed-label emoji)
                                       (throw e)))))
                               (shadowed-label treat))]
              (ui/horizontal-layout
