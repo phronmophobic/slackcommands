@@ -681,6 +681,49 @@
                                 #(treat-stats-ui* stats))}}]})
     (json/write-str stats)))
 
+(defn gift-treat* [treat-name]
+  (if-let [eid (->> (db/q '[:find ?e
+                            :in $ ?treat-name
+                            :where
+                            [?e :event/type ::dispense-treat]
+                            (or [?e :treat/description ?treat-name]
+                                [?e :treat/id ?treat-name])]
+                         treat-name)
+                   (map first)
+                   first)]
+    (let [_ (db/transact!
+             [[:db.fn/retractEntity eid]])]
+      true)
+    ;; else
+    false))
+
+(defn gift-treat [{:keys [slack/channel
+                          slack/thread-id
+                          slack/user-id]
+                   :strs [treat_name]}]
+  (let [success? (gift-treat* treat_name)]
+    (when success?
+      (let [[treat-id treat-description]
+            (if (contains? treats treat_name)
+              [treat_name (get treats treat_name)]
+              ["custom" treat_name])]
+        (db/transact! [{:event/time (Date.)
+                        :event/type ::regift-treat
+                        :event/user user-id
+                        :treat/id treat-id
+                        :treat/description treat-description}]))
+      (chat/post-message slack/conn
+                         channel
+                         nil
+                         {"thread_ts" thread-id
+                          "blocks" 
+                          [{"type" "section"
+                            "text" {"type" "mrkdwn"
+                                    "text" (str ":gift: I got you a " treat_name ". :gift:")}}]}))
+    (if success?
+      "The treat was successfully gifted."
+      "No treat with that name was found.")))
+
 (defn request-treat [channel thread-id]
   (let [p (promise)
         blocks [
@@ -739,7 +782,8 @@
                                      treat-description (-> payload
                                                            (get "actions")
                                                            first
-                                                           (get "value"))
+                                                           (get "value")
+                                                           (truncate 100))
                                      {:strs [id username name team_id]} (get payload "user")]
                                  (log-treat id treat-id treat-description)
                                  (deliver p treat-description)))
@@ -764,14 +808,27 @@
                      (:channel prompt-message))))
     treat))
 
+(defn has-key? []
+  (let [stats (treat-stats*)
+        treat-ids (->> stats
+                       :by-treat-counts
+                       keys)
+        ]
+    (boolean 
+     (some (fn [s]
+             (and (str/includes? s "key" )
+                  (str/includes? s "treat" )))
+           treat-ids))))
+
 (defn treat-dispenser [{:keys [slack/channel slack/thread-id]}]
   (let [treat (request-treat channel thread-id)]
     (cond 
       (#{::timeout ::shame} treat)
-      ;; (str "The treat dispenser is locked. Did you get permission to take a treat?")
-      (let [[emoji description] (rand-nth (seq treats))]
-        (str "The treat dispenser is locked, but you have a key. You use the key and find a " 
-             (str emoji " " description)))
+      (if (has-key?)
+        (let [[emoji description] (rand-nth (seq treats))]
+          (str "The treat dispenser is locked, but you have a key. You use the key and find a " 
+               (str emoji " " description)))
+        (str "The treat dispenser is locked. Did you get permission to take a treat?"))
 
       :else 
       (str "out popped a treat: " treat))))
@@ -897,6 +954,7 @@
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
     "treat_stats" #'treat-stats
+    "gift_treat" #'gift-treat
     "emoji_image_url" #'emoji-image-url
     "feature_request" #'feature-request
     "publish_html" #'publish-html
@@ -1250,6 +1308,17 @@
       "parameters"
       {"type" "object",
        "properties" {}}}}
+
+
+    {"type" "function",
+     "function"
+     {"name" "gift_treat",
+      "description" "Allows you to give one of your treats to the user. Treat names can be found via treat_stats.",
+      "parameters"
+      {"type" "object",
+       "required" ["treat_name"]
+       "properties" {"treat_name" {"type" "string"
+                                   "description" "The name of the treat to give. The name must match a treat found via treat_stats."}}}}}
 
     {"type" "function",
      "function"
