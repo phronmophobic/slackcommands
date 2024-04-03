@@ -44,6 +44,7 @@
                     thread-ts
                     (get event "ts"))
 
+        user-id (get event "user")
         files (get event "files")
         attachments
         (when (seq files)
@@ -80,6 +81,7 @@
         :slack/thread-id thread-id
         :slack/channel channel
         :slack/new-thread? (not thread-ts)
+        :slack/user-id user-id
         :prompt text
         :attachments attachments
         :status-ch status-ch}))
