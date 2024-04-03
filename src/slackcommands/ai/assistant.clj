@@ -1331,7 +1331,7 @@
     {"type" "function",
      "function"
      {"name" "examine_image",
-      "description" "Returns an image with the found objects and a table with the name, score, and id for each object found.",
+      "description" "Returns the found objects as a table with the name, score, id, and bounding box for each object found.",
       "parameters"
       {"type" "object",
        "required" ["url"]
