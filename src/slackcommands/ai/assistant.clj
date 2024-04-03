@@ -1639,7 +1639,7 @@
       :tools (into [{:type "code_interpreter"}
                     {:type "retrieval"}]
                    tools)
-      :instructions "Your a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question."}
+      :instructions "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question."}
      {:api-key openai-key}))
 
   (def response
