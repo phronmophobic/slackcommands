@@ -57,8 +57,8 @@
               "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]
    :extra-deps
    {;; com.phronemophobic/membrane {:mvn/version "0.12.2-beta"}
-    com.phronemophobic/membrane {:local/root "../membrane"}
-    com.phronemophobic.membrane/skialib-macosx-aarch64 {:mvn/version "0.13-beta"}
+    ;; com.phronemophobic/membrane {:local/root "../membrane"}
+    com.phronemophobic.membrane/skialib-macosx-aarch64 {:mvn/version "0.14-beta"}
     com.phronemophobic.cljonda/clip-cpp-darwin-aarch64 {:mvn/version "f4ee24bb86680a27f83c8e8c70adbcf4cb776615"}
     com.phronemophobic/schematic {:local/root "../schematic"}
     com.phronemophobic.membrane/skialib-linux-x86-64 {:mvn/version "0.13-beta"
