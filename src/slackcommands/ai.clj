@@ -482,10 +482,11 @@
           (future
             (wrap-exception
                 response-url
-              (let [urls (stability/create-image text)]
+              (let [url (stability/create-image text)]
                 (client/post response-url
                              {:body (json/write-str
-                                     (image-response text urls 0))
+                                     (dalle3-image-response text url)
+                                     #_(image-response text urls 0))
                               :headers {"Content-type" "application/json"}})))))
         {:body (json/write-str
                 {"response_type" "in_channel"})

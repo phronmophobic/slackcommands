@@ -214,24 +214,19 @@
                           (parse-query prompt)
                           prompt)
         response
-        (client/post (str base-api-url "/v1/generation/"engine "/text-to-image")
-                     {:body (json/write-str
-                             (merge
-                              generation-opts
-                              {"engine" engine}))
-                      :headers {"Content-type" "application/json"
-                                "Authorization" (str "Bearer " api-key)}})
-        payload (json/read-str (:body response))
-        response-id (str (random-uuid))
-        urls (into []
-                   (comp (map #(get % "base64"))
-                         (map b64decode)
-                         (map-indexed
-                          (fn [i bytes]
-                            (let [fname (str response-id "-" i ".png")]
-                              (util/save-bytes fname bytes)))))
-                   (get payload "artifacts"))]
-    urls))
+        (client/post (str base-api-url
+                          "/v2beta/stable-image/generate/sd3")
+                     {:multipart (into []
+                                       (map (fn [[k v]]
+                                              {:name k
+                                               :content v}))
+                                       {"prompt" prompt
+                                        "model" "sd3"
+                                        "output_format" "jpeg"})
+                      :headers {"Authorization" (str "Bearer " api-key)}
+                      :as :stream})
+        url (util/save-and-upload-stream (str (random-uuid) ".jpeg") (:body response))]
+    url))
 
 (defn help-text []
   (str
