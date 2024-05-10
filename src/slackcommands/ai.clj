@@ -553,7 +553,7 @@ See <https://docs.midjourney.com/docs/models> for more options.
             (wrap-exception2
                 {:channel-id channel-id
                  :response-url response-url}
-                (str ":waitingcat: " text)
+                (str ":waiting-cat: " text)
               (let [prompt (augment-midjourney-prompt text)
                     response (discord/create-image prompt)]
                 (if-let [url (:url response)]
