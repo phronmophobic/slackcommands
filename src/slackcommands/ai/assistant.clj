@@ -490,11 +490,12 @@
 (defn emoji-image-url [{:strs [emoji]}]
   (emoji/emoji->url (str/replace emoji #":" "")))
 
-(defn rustle-image [{:strs [image_url emoji]
+(defn rustle-image [{:strs [image_url emoji max]
                      :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
               :transparent? (get m "transparent" true)
               ;; :crop? (get m "crop" true)
+              :max? max
               :fps (get m "fps" 24)}
         image-url (if image_url
                     (util/maybe-download-slack-url image_url)
@@ -1429,6 +1430,9 @@
         "transparent" {"type" "boolean"
                        "description" "Whether the gif should be transparent or opaque"
                        "default" true}
+        "max" {"type" "boolean"
+               "description" "Whether the gif should be max."
+               "default" false}
         #_#_"crop" {"type" "boolean"
                 "description" "Whether the gif should be cropped"
                 "default" true}
