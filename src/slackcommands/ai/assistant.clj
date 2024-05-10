@@ -361,7 +361,8 @@
         ;;        (constantly true))
         urls
         (->> (slack/thread-attachments channel thread-id)
-             (map util/maybe-download-slack-url))
+             (map (fn [m]
+                    (update m :url util/maybe-download-slack-url))))
         #_(->> (get @thread-attachments thread-id)
              vals
              (filter #(pred (:mimetype %)))
