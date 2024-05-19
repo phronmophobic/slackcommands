@@ -490,11 +490,13 @@
 (defn emoji-image-url [{:strs [emoji]}]
   (emoji/emoji->url (str/replace emoji #":" "")))
 
-(defn rustle-image [{:strs [image_url emoji max]
+(defn rustle-image [{:strs [image_url emoji max max_offset direction]
                      :as m}]
   (let [opts {:alpha-threshold (get m "alpha_threshold" 128)
               :transparent? (get m "transparent" true)
               ;; :crop? (get m "crop" true)
+              :max-offset (get m "max_offset" 4)
+              :direction (get m "direction" "random")
               :max? max
               :fps (get m "fps" 24)}
         image-url (if image_url
@@ -503,7 +505,7 @@
                       (emoji/emoji->url emoji)))]
     (if image-url
       (let [url-cropped (gif/rustle-image image-url (assoc opts :crop? true))
-            url-uncropped (gif/rustle-image image-url opts)]
+            url-uncropped (gif/rustle-image image-url (assoc opts :crop? false))]
         (str "Here are the rustled images:\n" 
              "cropped: " url-cropped "\n"
              "without cropping: "url-uncropped "\n"))
@@ -1424,6 +1426,20 @@
        {"image_url" {"type" "string",
                      "pattern" "^http.*"
                      "description" "A url to an image to rustle."}
+        "direction" {"type" "string",
+                     "enum" ["west"
+                             "northwest"
+                             "north"
+                             "northeast"
+                             "east"
+                             "southeast"
+                             "south"
+                             "southwest"
+                             "random"]
+                     "description" "The direction to rustle an images. Accepts \"random\" or any of the cardinal directions."
+                     "default" "random"}
+        "max_offset" {"type" "integer"
+                      "description" "The maximum amount of pixels to shift the image during rustling."}
         "emoji" {"type" "string",
                  "pattern" "^:.*:$"
                  "description" "An emoij to rustle."}

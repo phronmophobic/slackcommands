@@ -5,6 +5,7 @@
             [com.phronemophobic.clj-media.model :as mm]
             [membrane.ui :as ui]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [membrane.java2d :as java2d]
             [slackcommands.util :as util]))
 
@@ -26,6 +27,15 @@
            125e3)
       (recur (dec max-colors))
       outf)))
+
+
+(defn vscale [[x y] s]
+  [(* x s)
+   (* y s)])
+(defn vquantize [[x y]]
+  [(Math/round x)
+   (Math/round y)])
+
 
 (defn rustle-image
   ([url]
@@ -51,9 +61,36 @@
                          (/ size iw)))]
 
          crop? (get opts :crop? true)
-         max-dx (long (* rustle-pct w))
-         max-dy (long (* rustle-pct h))
-
+         max-offset (get opts :max-offset 4)
+         direction (get opts :direction "random")
+         
+         rand-rad (fn []
+                    (- 1.0
+                       (* 2 (rand))))
+         offset-radf (case direction
+                       "west" (constantly 1)
+                       "northwest" (constantly 0.75)
+                       "north" (constantly 0.5)
+                       "northeast" (constantly 0.25)
+                       "east" (constantly 0)
+                       "southeast" (constantly -0.25)
+                       "south" (constantly -0.5)
+                       "southwest" (constantly -0.75)
+                       "random" rand-rad
+                       ;; default
+                       rand-rad)
+         offsetf (fn []
+                   (let [rad (* Math/PI (offset-radf))
+                         v [(Math/cos rad) (Math/sin rad)]
+                         vlen (- max-offset
+                                 (* (rand max-offset) 2))
+                         v (-> v
+                               (vscale vlen)
+                               (vquantize))]
+                     v))
+         max-dx max-offset
+         max-dy max-offset
+         
          gif-width (if crop?
                      (- w (* 2 max-dx))
                      w)
@@ -71,12 +108,10 @@
            (map (fn [buf-img]
                   (ui/image buf-img [w h])))
            (map (fn [img]
-                  (ui/translate
-                   (- (rand-int (* 2 max-dx))
-                      max-dx)
-                   (- (rand-int (* 2 max-dy))
-                      max-dy)
-                   img)))
+                  (let [[dx dy] (offsetf)]
+                    (ui/translate
+                     dx (- dy) ;; y axis is inverted
+                     img))))
            (if crop?
              (map (fn [img]
                     (ui/translate
