@@ -777,9 +777,9 @@
                          :expansion ["Gloomhaven"
                                      "Frosthaven"
                                      "Jaws Of The Lion"]))
-        party ["boneshaper"
+        party ["painconduit"
                "hive"
-               "deathwalker"]
+               "snowdancer"]
         command (if (:character command)
                   command
                   (assoc command
