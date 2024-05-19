@@ -219,7 +219,7 @@
 
     ;; default
     (let [response (api/create-chat-completion {:model
-                                                "gpt-4"
+                                                "gpt-4o"
                                                 ;; "gpt-3.5-turbo"
                                                 :messages messages}
                                                {:api-key api-key})
