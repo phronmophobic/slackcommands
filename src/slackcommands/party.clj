@@ -5,6 +5,58 @@
             [clojure.java.io :as io])
   (:import java.util.regex.Pattern))
 
+;;
+
+
+(defn split-on-numbers
+  "Split a string into a sequence of parts where numbers and non-numbers
+  are separated."
+  [s]
+  (let [re (re-seq #"(?<num>\d+)|(?<notnum>\D+)" s)]
+    (map 
+     (fn [[_ num not-num]]
+       (if num
+         (parse-long num)
+         not-num))
+     re)))
+
+(defn natural-compare
+  "Compare two strings in a natural order."
+  [s1 s2]
+  (let [parts-a (split-on-numbers s1)
+        parts-b (split-on-numbers s2)]
+    (loop [pa parts-a, pb parts-b]
+      (cond
+        (and (empty? pa) (empty? pb)) 0
+        (empty? pa) -1
+        (empty? pb) 1
+        :else
+        (let [a (first pa)
+              b (first pb)
+              cmp (if (= (type a)
+                         (type b))
+                    (compare a b)
+                    (compare (str a) (str b)))]
+          (if (zero? cmp)
+            (recur (rest pa) (rest pb))
+            cmp))))))
+
+(defn natural-sort
+  "Sort a collection of strings in natural order."
+  [coll]
+  (sort natural-compare coll))
+
+;; Example usage
+(comment
+  (def strings ["steamed-hams-9" "steamed-hams-10" "steamed-hams-2" "steamed-hams-1"])
+  (def sorted-strings (natural-sort strings))
+
+  (prn sorted-strings)
+  ,)
+
+;; 
+
+
 (defn party-file [party-name]
   (when (or (not (re-matches #"[a-zA-Z0-9\-_.:]+"
                              party-name))
@@ -71,7 +123,7 @@
                            " "
                            (eduction
                             (map #(str ":" % ":"))
-                            matches))))
+                            (natural-sort matches)))))
 
                       :else
                       (try
