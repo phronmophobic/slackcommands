@@ -75,7 +75,7 @@
                (let [nn (get sheet "Nickname")]
                  (subs nn (count "CharacterSheet_"))))]
     {;; :sheet sheet
-     :xp (parse-long (get state "xp"))
+     :xp (get state "xp")
      :gold (parse-long (get state "gold"))
      :level level
      :name name
