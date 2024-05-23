@@ -6,6 +6,7 @@
                                 :git/url "https://github.com/phronmophobic/clj-slack"
                                 :git/sha "b8ced2fff28bf0ca75491707cf7efbcc11be9d67"
                                 }
+        com.novemberain/pantomime {:mvn/version "2.11.0"}
 
         ;; https://github.com/ianbarber/clj-gapi
         com.google.cloud/google-cloud-vision {:mvn/version "3.30.0"}
