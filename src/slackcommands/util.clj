@@ -9,7 +9,8 @@
             [clj-http.client :as client]
             [slackcommands.slack :as slack]
             [datalevin.core :as d]
-            [membrane.ui :as ui]))
+            [membrane.ui :as ui])
+  (:import java.io.File))
 
 (def s3-creds
   {:profile "aimages"
@@ -66,6 +67,9 @@
   (when (and (str/starts-with? url "https://aimages.smith.rocks/" )
             (.exists (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
     (io/file aimage-dir (subs url (count "https://aimages.smith.rocks/")))))
+
+(defn temp-file [prefix suffix]
+  (File/createTempFile prefix suffix))
 
 (declare content-type->suffix
          save-and-upload-stream)

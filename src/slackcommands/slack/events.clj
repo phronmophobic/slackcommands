@@ -5,7 +5,7 @@
             [slackcommands.util :as util]
             [clojure.core.async :as async]
             [clojure.string :as str]
-            [slackcommands.ai.assistant :as assistant]
+            [slackcommands.ai.assistant2 :as assistant]
             [slackcommands.slack :as slack]
             [clojure.data.json :as json]))
 
@@ -65,9 +65,13 @@
                              public-url))}))
                 files))
 
-        ch (async/chan)
-        status-ch (async/chan)
+        ch (async/chan 5)
+        ;; status-ch (async/chan)
         text (strip-prefix text)
+        placeholder-snippet (if (< (count text) 20)
+                              text
+                              (str (subs text 0 20) "..."))
+
         audio-prompt? (and (empty? text)
                            (some #(util/audio? (:mimetype %)) attachments))
         text (if audio-prompt?
@@ -83,53 +87,53 @@
         :slack/new-thread? (not thread-ts)
         :slack/user-id user-id
         :prompt text
-        :attachments attachments
-        :status-ch status-ch}))
+        :attachments attachments}))
 
     (async/thread
-      (let [placeholder-message
-            (chat/post-message slack/conn
-                               channel
-                               ":thonking:"
-                               {"thread_ts" thread-id})]
-        (when (:ts placeholder-message)
-          (async/thread
-            (loop []
-              (let [msg (async/<!! status-ch)]
-                (when msg
-                  (slack/message-update slack/conn
-                                        channel
-                                        (:ts placeholder-message)
-                                        {"blocks"
-                                         (json/write-str
-                                          [{"type" "section"
-                                            "text" {"type" "mrkdwn"
-                                                    "text" (str ":thonking: " msg)}}])})
-                  (recur))))))
+      (let [message (chat/post-message slack/conn
+                                       channel
+                                       (str ":thonking: "
+                                            placeholder-snippet)
+                                       {"thread_ts" thread-id})
+            update-message (fn [ts offset markdown]
+                             (loop [ts ts
+                                    offset offset]
+                               (let [chunk (subs markdown offset (min (count markdown)
+                                                                      (+ offset 2999)))
+                                     {:keys [ts]} (if ts
+                                                    (slack/message-update
+                                                     slack/conn
+                                                     channel
+                                                     ts)
+                                                    (chat/post-message slack/conn
+                                                                       channel
+                                                                       chunk
+                                                                       {"thread_ts" thread-id
+                                                                        "blocks"
+                                                                        (json/write-str
+                                                                         [{"type" "section"
+                                                                           "text" {"type" "mrkdwn"
+                                                                                   "text" chunk}}])}))]
+                                 (if (< (count markdown) (+ offset 2999))
+                                   [ts offset]
+                                   (recur nil (+ offset 2999))))))]
 
-        (loop [first? true]
-          (let [{:keys [id text] :as msg} (async/<!! ch)]
-            (when (and first?
-                       (:ts placeholder-message))
-              (async/close! status-ch)
-              (chat/delete slack/conn
-                           (:ts placeholder-message)
-                           channel))
-            (prn "got msg" msg)
-            (when msg
-              (let [[old _] (swap-vals! sent-msg-ids conj id)]
-                (when (not (contains? old id))
-                  (let [text (format-response text)]
-                    (doseq [chunk (partition-all 2999 text)
-                            :let [subresponse (apply str chunk)]]
-                      (chat/post-message slack/conn channel
-                                         subresponse
-                                         {"thread_ts" thread-id
-                                          "blocks" (json/write-str
-                                                    [{"type" "section"
-                                                      "text" {"type" "mrkdwn"
-                                                              "text" subresponse}}])}))))
-                (recur false)))))))))
+        (when (:ts message)
+          (loop [ts (:ts message)
+                 offset 0]
+            (let [chunk (async/<!! ch)]
+              (when chunk
+                (cond
+                  (instance? Exception chunk)
+                  (update-message ts offset "uhoh.")
+
+                  ;; ignore
+                  (:tool_calls chunk)
+                  (recur ts offset)
+
+                  (:content chunk)
+                  (let [[ts offset] (update-message ts offset (:content chunk))]
+                    (recur ts offset)))))))))))
 
 (defn events-api [req]
   ;; (clojure.pprint/pprint req)
