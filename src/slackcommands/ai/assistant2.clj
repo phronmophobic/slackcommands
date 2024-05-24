@@ -1714,6 +1714,7 @@
                         parts)
 
                 url (subs s start end)
+                url (util/maybe-download-slack-url url)
                 ;; always add as text
                 parts (conj parts {:type "text"
                                    :text url})
