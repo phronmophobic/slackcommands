@@ -1744,7 +1744,11 @@
                                                :messages messages
                                                #_[{:role "system" :content "You are a helpful assistant."}
                                                   {:role "user" :content "can you generate 3 images of cats using dalle?"}]
-                                               :tools tools
+                                               :tools 
+                                               (->> tools
+                                                    (filter (fn [tool]
+                                                              (let [tool-name (get-in tool ["function" "name"])]
+                                                            (contains? tool-fns tool-name)))))
                                                :stream true}
 
                                               {:api-key openai-key})]
