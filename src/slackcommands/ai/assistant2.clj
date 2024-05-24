@@ -1880,7 +1880,8 @@
                                  (map (fn [{:keys [url]}]
                                         {:type "image_url"
                                          :image_url {:url @url}})))
-                prompt-text (if stored-messages
+                prompt-text (if (or stored-messages
+                                    (:slack/new-thread? prompt-request))
                               (:prompt prompt-request)
                               (str (:prompt prompt-request) "\nRetrieve the current thread for context."))
                 content (parse-prompt prompt-text)
