@@ -1913,7 +1913,6 @@
                             (map :result-ch)
                             (vals threads))
                 [val port] (async/alts!! ports)]
-            (prn "threads:" threads)
             (cond
               
               (identical? prompt-ch port)
@@ -1941,7 +1940,7 @@
                                      threads)]
                 (recur (dissoc threads thread-key))))))
         (catch Throwable e
-          (prn e))
+          (prn-truncate e))
         (finally
           (println "quitting thread coordinator."))))
     prompt-ch))
