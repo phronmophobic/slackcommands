@@ -502,15 +502,21 @@
 
 
 (defn retrieve-thread [{:strs [thread_id]
-                        :keys [slack/channel slack/thread-id]}]
+                        :keys [slack/channel slack/thread-id]
+                        tool-call-id :tool-call/id
+                        :as args}]
   (let [[channel-id thread-id]
         (if thread_id
           (let [[_ channel-id thread-id] (str/split thread_id #"-")]
             [channel-id thread-id])
           [channel thread-id])]
-    (prn channel-id thread-id)
     (if-let [s (slack/retrieve-thread channel-id thread-id)]
-      (str "Below is a transcript of the thread:\n\n" s)
+      {::messages [{:tool_call_id tool-call-id
+                    :role "tool"
+                    :content (str "The attachments will be listed. Below is a transcript of the thread.\n\n"
+                                  s)}
+                   {:role "user"
+                    :content (attachment-content args)}]}
       "No thread found for that thread id.")))
 
 (defn examine-image [{:strs [url]
