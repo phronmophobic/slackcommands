@@ -1869,7 +1869,8 @@
     (try
       (loop [prompt-request (async/<!! in-ch)]
         (if prompt-request
-          (let [messages (or (load-thread thread-key)
+          (let [stored-messages (load-thread thread-key)
+                messages (or stored-messages
                              [{:role "system"
                                :content "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question."}])
 
@@ -1879,7 +1880,10 @@
                                  (map (fn [{:keys [url]}]
                                         {:type "image_url"
                                          :image_url {:url @url}})))
-                content (parse-prompt (:prompt prompt-request))
+                prompt-text (if stored-messages
+                              (:prompt prompt-request)
+                              (str (:prompt prompt-request) "\nRetrieve the current thread for context."))
+                content (parse-prompt prompt-text)
 
                 new-message {:role "user"
                              :content (into content
