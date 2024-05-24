@@ -1693,7 +1693,7 @@
                             tool_calls))))))
 
 
-(def url-pattern #"https?://[^\s]*")
+(def url-pattern #"https?://[^\s]+[^\s.)?!]")
 (defn parse-prompt
   "Parses a prompt into text and url pieces.
 
