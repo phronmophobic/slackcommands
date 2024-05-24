@@ -34,6 +34,8 @@
       (prn "Exception formatting response!")
       text)))
 
+(def SLACK-TIMEOUT 15e3)
+(def SLACK-MAX-LENGTH 2999)
 (defn handle-event [event]
   (let [thread-ts (get event "thread_ts")
         
@@ -78,62 +80,99 @@
                "Transcribe the attached audio and follow the instructions."
                text)]
     ;; (clojure.pprint/pprint event)
-    (async/thread
-      (prn "responding to" ch thread-id text)
-      (assistant/respond
-       {:ch ch
-        :slack/thread-id thread-id
-        :slack/channel channel
-        :slack/new-thread? (not thread-ts)
-        :slack/user-id user-id
-        :prompt text
-        :attachments attachments}))
+    (assistant/respond
+     {:ch ch
+      :slack/thread-id thread-id
+      :slack/channel channel
+      :slack/new-thread? (not thread-ts)
+      :slack/user-id user-id
+      :prompt text
+      :attachments attachments})
 
     (async/thread
-      (let [message (chat/post-message slack/conn
-                                       channel
-                                       (str ":thonking: "
-                                            placeholder-snippet)
-                                       {"thread_ts" thread-id})
-            update-message (fn [ts offset markdown]
-                             (loop [ts ts
-                                    offset offset]
-                               (let [chunk (subs markdown offset (min (count markdown)
-                                                                      (+ offset 2999)))
-                                     {:keys [ts]} (if ts
-                                                    (slack/message-update
-                                                     slack/conn
-                                                     channel
-                                                     ts)
-                                                    (chat/post-message slack/conn
-                                                                       channel
-                                                                       chunk
-                                                                       {"thread_ts" thread-id
-                                                                        "blocks"
-                                                                        (json/write-str
-                                                                         [{"type" "section"
-                                                                           "text" {"type" "mrkdwn"
-                                                                                   "text" chunk}}])}))]
-                                 (if (< (count markdown) (+ offset 2999))
-                                   [ts offset]
-                                   (recur nil (+ offset 2999))))))]
+      (try
+        (let [message (chat/post-message slack/conn
+                                         channel
+                                         (str ":thonking: "
+                                              placeholder-snippet)
+                                         {"thread_ts" thread-id})
+              update-message (fn [[ts offset] markdown]
+                               (loop [ts ts
+                                      offset offset]
+                                 (let [chunk (subs markdown offset (min (count markdown)
+                                                                        (+ offset SLACK-MAX-LENGTH)))
+                                       {:keys [ts]} (if ts
+                                                      (slack/message-update
+                                                       slack/conn
+                                                       channel
+                                                       ts
+                                                       {"blocks"
+                                                        (json/write-str
+                                                         [{"type" "section"
+                                                           "text" {"type" "mrkdwn"
+                                                                   "text" chunk}}])})
+                                                      (chat/post-message slack/conn
+                                                                         channel
+                                                                         chunk
+                                                                         {"thread_ts" thread-id
+                                                                          "blocks"
+                                                                          (json/write-str
+                                                                           [{"type" "section"
+                                                                             "text" {"type" "mrkdwn"
+                                                                                     "text" chunk}}])}))]
+                                   (if (< (count markdown) (+ offset SLACK-MAX-LENGTH))
+                                     [ts offset]
+                                     (recur nil (+ offset SLACK-MAX-LENGTH))))))]
 
-        (when (:ts message)
-          (loop [ts (:ts message)
-                 offset 0]
-            (let [chunk (async/<!! ch)]
-              (when chunk
-                (cond
-                  (instance? Exception chunk)
-                  (update-message ts offset "uhoh.")
+          (when (:ts message)
+            (loop [cursor [(:ts message) 0] 
+                   timeout (async/timeout SLACK-TIMEOUT)
+                   latest-content ""]
+              (async/alt!!
+                timeout ([_]
+                         (recur (if (seq latest-content)
+                                  (update-message cursor
+                                                  latest-content)
+                                  cursor)
+                                (async/timeout SLACK-TIMEOUT)
+                                latest-content))
+                ch ([chunk]
+                    (if chunk
+                      (cond
+                        (instance? Exception chunk)
+                        (update-message cursor "uhoh.")
 
-                  ;; ignore
-                  (:tool_calls chunk)
-                  (recur ts offset)
+                        (:tool_calls chunk)
+                        (let [tool-calls
+                              (str "tool calls: "
+                                   (str/join
+                                    ", "
+                                    (eduction
+                                     (map :function)
+                                     (map :name)
+                                     (:tool_calls chunk))))]
+                          (if (= latest-content tool-calls)
+                            (recur cursor timeout latest-content)
+                            (recur
+                             (update-message cursor tool-calls)
+                             timeout
+                             tool-calls)))
 
-                  (:content chunk)
-                  (let [[ts offset] (update-message ts offset (:content chunk))]
-                    (recur ts offset)))))))))))
+                        (:content chunk)
+                        (recur cursor timeout (:content chunk))
+
+                        :else
+                        (recur cursor timeout latest-content))
+
+                      ;; done
+                      (do
+                        (update-message cursor latest-content))))))))
+        (catch Exception e
+          (prn "error!")
+          (clojure.pprint/pprint e))
+        (finally 
+          ;;(prn "slack thread stopped")
+          )))))
 
 (defn events-api [req]
   ;; (clojure.pprint/pprint req)
