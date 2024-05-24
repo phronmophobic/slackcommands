@@ -1025,34 +1025,50 @@
    (img/tool-fns)))
 
 
-(defn run-tool* [ctx
-                 {:keys [id function]
-                  :as tool-call}]
+(defn run-tool*
+  "Runs a tool. Returns a vector of messages."
+  [ctx
+   {:keys [id function]
+    :as tool-call}]
   (print "running ")
   (prn-truncate tool-call)
   (try
     (let [{:keys [name arguments]} function
           arguments (merge (json/read-str arguments)
+                           {:tool-call/id id}
                            ctx)
           tool-fn (get tool-fns name)]
       (when (not tool-fn)
         (throw (Exception. (str "Unknown tool function:" name))))
       (let [output (tool-fn arguments)]
-        (prn "finished " tool-call {:tool_call_id id :output output})
-        (when (not (string? output))
+        (prn "finished " tool-call )
+        (cond
+          (map? output)
+          (cond
+            (::messages output)
+            (::messages output)
+
+            :else
+            (throw (ex-info "Unknown tool response"
+                            {:output output})))
+
+          (string? output)
+          [{:tool_call_id id
+            :role "tool"
+            :content output}]
+
+
+          :else
           (throw (ex-info "Invalid tool-fn output. Must be string."
                           {:tool-fn tool-fn
                            :arguments arguments
                            :tool-name name
-                           :output output})))
-        {:tool_call_id id
-         :role "tool"
-         :content output}))
+                           :output output})))))
     (catch Throwable e
       (prn-truncate e)
-      {:tool_call_id id
-       :role "tool"
-       :content "An error occurred while running this tool."})))
+      [{:tool_call_id id
+        :role "tool"
+        :content "An error occurred while running this tool."}])))
 
 (defn run-tools [ctx tool-calls]
   (let [tool-future-results
@@ -1060,15 +1076,13 @@
               (map (fn [tool-call]
                      (.submit @tool-executor
                               (fn []
-                                (doto (run-tool* ctx tool-call)
-                                  (prn))))))
+                                (run-tool* ctx tool-call)))))
               tool-calls)
         tool-outputs
         (into []
-              (map deref)
+              (mapcat deref)
               tool-future-results)]
     (prn "finished running all tools.")
-    (prn "tool outputs" tool-outputs)
     tool-outputs))
 
 (def tools
