@@ -1753,7 +1753,8 @@
 
                                               {:api-key openai-key})]
               (catch Exception e
-                (clojure.pprint/pprint e)
+                (prn "chat exception")
+                (println (-> e ex-data :body slurp))
                 [e nil]))]
         (if err
           (do
@@ -1780,8 +1781,6 @@
     (async/thread
       (try
         (loop [messages messages]
-          (clojure.pprint/pprint
-           messages)
           (let [responses (run-prompt* messages)
                 response (loop [last-response nil]
                            (let [response (async/<!! responses)]
