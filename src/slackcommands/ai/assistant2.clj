@@ -1860,8 +1860,19 @@
           (let [messages (or (load-thread thread-key)
                              [{:role "system"
                                :content "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question."}])
+
+                attachments (->> (:attachments prompt-request)
+                                 (filter (fn [{:keys [mimetype]}]
+                                           (pantomime.media/image? mimetype)))
+                                 (map (fn [{:keys [url]}]
+                                        {:type "image_url"
+                                         :image_url {:url @url}})))
+                content (parse-prompt (:prompt prompt-request))
+
                 new-message {:role "user"
-                             :content (parse-prompt (:prompt prompt-request))}
+                             :content (into content
+                                            attachments)}
+
                 messages (conj messages new-message)
                 ch (run-prompt prompt-request messages)
                 result-ch (:ch prompt-request)
