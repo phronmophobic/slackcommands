@@ -1720,7 +1720,7 @@
                                    :text url})
                 ;; only add as image url based on suffix
                 parts (if (pantomime.media/image?
-                          (mime/mime-type-of url))
+                           (mime/mime-type-of url))
                         (conj parts {:type "image_url"
                                      :image_url {:url url}})
                         parts)]
