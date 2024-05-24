@@ -424,6 +424,20 @@
       
       (str "The file-id of the ingested file will be " file-id))))
 
+(defn load-images [{:strs [image_urls]
+                    tool-call-id :tool-call/id}]
+  {::messages [{:tool_call_id tool-call-id
+                :role "tool"
+                :content "The load has completed."}
+               {:role "user"
+                :content
+                (into []
+                      (comp (map util/maybe-download-slack-url)
+                            (map (fn [url]
+                                   {:type "image_url"
+                                    :image_url {:url url}})))
+                      image_urls)}]})
+
 
 (defn send-to-main [{:strs [markdown]
                      :keys [slack/channel
@@ -991,7 +1005,8 @@
     "text_to_speech" #'text-to-speech
     "transcribe" #'transcribe
     "list_attachments" #'list-attachments
-    "ingest_url" #'ingest-url
+    ;; "ingest_url" #'ingest-url
+    "load_images" #'load-images
     "read_url_link" #'link-reader
     "send_to_main" #'send-to-main
     "send_to_channel" #'send-to-channel
@@ -1148,6 +1163,21 @@
        {"url" {"type" "string",
                "description" "A URL that points to file to ingest."},},
        "required" ["url"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "load_images",
+      "description" "Loads the URLs and includes in them in the thread.",
+      "parameters"
+      {"type" "object",
+       "required" ["image_urls"]
+       "properties"
+       {"image_urls" 
+        {"type" "array"
+         "description" "A list of image urls to load."
+         "items" {"type" "string",
+                  "pattern" "^http.*"
+                  "description" "A url to an image to load."}}}}}}
     {"type" "function",
      "function"
      {"name" "send_to_main",
