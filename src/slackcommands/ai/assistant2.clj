@@ -357,27 +357,28 @@
 
 
 (defn list-attachments [{:keys [slack/channel
-                                slack/thread-id]}]
-  (let [;; pred (if type
-        ;;        (case type
-        ;;          "audio" util/audio?
-        ;;          "video" util/video?
-        ;;          "image" util/image?
-        ;;          "plaintext" util/plaintext?)
-        ;;        (constantly true))
-        urls
-        (->> (slack/thread-attachments channel thread-id)
-             (map (fn [m]
-                    (update m :url util/maybe-download-slack-url))))
-        #_(->> (get @thread-attachments thread-id)
-             vals
-             (filter #(pred (:mimetype %)))
-             (map :url)
-             (map deref))]
-    (json/write-str urls)
-    #_(if (seq urls)
-      (str/join "\n" urls)
-      "No matching attachments.")))
+                                slack/thread-id]
+                         tool-call-id :tool-call/id}]
+  {::messages [{:tool_call_id tool-call-id
+                :role "tool"
+                :content "The attachments have been added."}
+               {:role "user"
+                :content
+                (into []
+                      (comp
+                       (mapcat (fn [{:keys [url name mimetype]}]
+                                 (let [url (util/maybe-download-slack-url url)
+                                       messages [{:type "text"
+                                                  :text url}]
+                                       messages (if (or (pantomime.media/image? mimetype)
+                                                        (pantomime.media/image?
+                                                         (mime/mime-type-of url)))
+                                                  (conj messages {:type "image_url"
+                                                                  :image_url {:url url}})
+                                                  messages)]
+                                   messages))))
+                      (slack/thread-attachments channel thread-id))}
+               ]})
 
 (defn ingest-url [{:strs [url]
                    :as args}]
