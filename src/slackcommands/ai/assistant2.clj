@@ -381,7 +381,7 @@
                          :as args}]
   {::messages [{:tool_call_id tool-call-id
                 :role "tool"
-                :content "The attachments have been added."}
+                :content "The attachments will be listed."}
                {:role "user"
                 :content (attachment-content args)}]})
 
