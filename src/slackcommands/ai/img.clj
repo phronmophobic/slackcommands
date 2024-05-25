@@ -243,7 +243,7 @@
         overlay_url (util/maybe-download-slack-url overlay_url)]
     [(ui/image (io/as-url url))
      (ui/translate
-      (get position "x") (get position "y")
+      (get position "x" 0) (get position "y" 0)
       (ui/image (io/as-url overlay_url) nil opacity))]))
 
 
