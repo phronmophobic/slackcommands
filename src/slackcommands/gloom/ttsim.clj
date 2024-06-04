@@ -78,7 +78,7 @@
      :xp (get state "xp")
      :gold (parse-long (get state "gold"))
      :level level
-     :name name
+     :name (str/trim name)
      :resources
      (into {}
            (map (fn [k]
