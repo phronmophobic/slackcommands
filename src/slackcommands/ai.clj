@@ -535,7 +535,8 @@ See <https://docs.midjourney.com/docs/models> for more options.
 (defn midjourney-image-command [request]
   (let [text (get-in request [:form-params "text"])
         channel-id (get-in request [:form-params "channel_id"])
-        response-url (get-in request [:form-params "response_url"])]
+        response-url (get-in request [:form-params "response_url"])
+        user-id (get-in request [:form-params "user_id"])]
 
     (if (#{"" "help"} (str/trim text))
       {:body (json/write-str
