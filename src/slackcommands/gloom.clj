@@ -778,8 +778,8 @@
                                      "Frosthaven"
                                      "Jaws Of The Lion"]))
         party ["painconduit"
-               "hive"
-               "snowdancer"]
+               "blinkblade"
+               "pyroclast"]
         command (if (:character command)
                   command
                   (assoc command
