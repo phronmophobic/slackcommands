@@ -1119,7 +1119,13 @@
               (mapcat deref)
               tool-future-results)]
     (prn "finished running all tools.")
-    tool-outputs))
+
+    (into []
+          ;; tools responses must come before other types of roles
+          (sort-by
+           (fn [message]
+             (not (= "tool" (:role message))))
+           tool-outputs))))
 
 (def tools
   (into
