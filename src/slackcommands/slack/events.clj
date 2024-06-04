@@ -70,9 +70,9 @@
         ch (async/chan 5)
         ;; status-ch (async/chan)
         text (strip-prefix text)
-        placeholder-snippet (if (< (count text) 20)
+        placeholder-snippet (if (< (count text) 60)
                               text
-                              (str (subs text 0 20) "..."))
+                              (str (subs text 0 60) "..."))
 
         audio-prompt? (and (empty? text)
                            (some #(util/audio? (:mimetype %)) attachments))
