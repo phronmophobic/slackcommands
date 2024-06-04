@@ -445,6 +445,9 @@
                 :content
                 (into []
                       (comp (map util/maybe-download-slack-url)
+                            (filter (fn [url]
+                                      (pantomime.media/image?
+                                       (mime/mime-type-of url))))
                             (map (fn [url]
                                    {:type "image_url"
                                     :image_url {:url url}})))
