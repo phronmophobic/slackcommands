@@ -355,25 +355,31 @@
    (java.io.ByteArrayInputStream. 
     (.getBytes html "utf-8"))))
 
-(defn attachment-content [{:keys [slack/channel
-                                   slack/thread-id]}]
-  (into [{:type "text"
-          :text "Here are the attachments:\n"}]
-        (comp
-         (mapcat (fn [{:keys [url name mimetype]}]
-                   (let [url (util/maybe-download-slack-url url)
-                         messages [{:type "text"
-                                    :text url}]
-                         messages (if (or (pantomime.media/image? mimetype)
-                                          (pantomime.media/image?
-                                           (mime/mime-type-of url)))
-                                    (conj messages {:type "image_url"
-                                                    :image_url {:url url}})
-                                    messages)]
-                     messages)))
-         (interpose {:type "text"
-                     :text "\n"}))
-        (slack/thread-attachments channel thread-id)))
+(defn attachment-content [{:strs [thread_id]
+                           :keys [slack/channel slack/thread-id]}]
+  (let [[channel-id thread-id] (if thread_id
+                                 (let [[_ channel-id thread-id] (str/split thread_id #"-")]
+                                   [channel-id thread-id])
+                                 [channel thread-id])]
+    (into [{:type "text"
+            :text "Here are the attachments:\n"}]
+          (comp
+           (mapcat (fn [{:keys [url name mimetype]}]
+                     (let [url (util/maybe-download-slack-url url)
+                           messages [{:type "text"
+                                      :text url}]
+                           messages (if (or (and mimetype
+                                                 (pantomime.media/image? mimetype))
+                                            (and url
+                                                 (pantomime.media/image?
+                                                  (mime/mime-type-of url))))
+                                      (conj messages {:type "image_url"
+                                                      :image_url {:url url}})
+                                      messages)]
+                       messages)))
+           (interpose {:type "text"
+                       :text "\n"}))
+          (slack/thread-attachments channel-id thread-id))))
 
 (defn list-attachments [{:keys [slack/channel
                                 slack/thread-id]
