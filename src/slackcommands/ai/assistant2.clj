@@ -6,6 +6,7 @@
             [com.phronemophobic.clj-media :as clj-media]
             [clojure.core.async :as async]
             [clj-http.client :as http]
+            [slingshot.slingshot :refer [throw+ try+]]
             [clojure.data.json :as json]
             [com.phronemophobic.discord.api :as discord]
             [com.phronemophobic.nubes :as nubes]
@@ -979,9 +980,15 @@
   (let [amount (parse-amount amount)]
     (if (get-approval channel thread-id 
                       (str ":this-is-fine-but-with-ai: would like to buy $" amount " of " symbol ".") )
-      (json/write-str
-       (alpaca/create-order {:symbol symbol
-                             :notional (parse-amount amount)}))
+      (try+
+        (let [result (alpaca/create-order {:symbol symbol
+                                           :notional (parse-amount amount)})]
+          (json/write-str result))
+        (catch [:status 403] {:keys [body]}
+          (let [m (json/read-str body)]
+            (prn-truncate m)
+            (json/write-str (select-keys m ["buying_power"
+                                            "message"])))))
       "The request to buy this stonk was denied.")))
 
 (defn get-stonks-balance [{:keys [slack/channel slack/thread-id]}]
