@@ -949,7 +949,12 @@
     (if (seq core-memories)
       (str
        "Your core memories are:\n"
-       (clojure.string/join "\n" core-memories))
+       (clojure.string/join
+        "\n"
+        (eduction
+         (map-indexed (fn [i memory]
+                        (str i ". " memory)))
+         core-memories)))
       "You have no core memories.")))
 
 (defn form-core-memory [{:strs [memory]}]
@@ -964,6 +969,25 @@
                    (conj memories memory))]
     (d/transact-kv @db [[:put thread-table ::core-memories memories]])
     "Core memory formed."))
+
+(defn forget-core-memory [{:strs [memory_index]}]
+  (let [memories (or (d/get-value @db thread-table ::core-memories)
+                     [])
+        memories (into []
+                       (comp
+                        (keep-indexed (fn [i memory]
+                                        (when (not= i memory_index)
+                                          memory)))
+                        (take 4))
+                       memories)]
+    (d/transact-kv @db [[:put thread-table ::core-memories memories]])
+    (str "Core memories updated. Your core memories are now:"
+         (clojure.string/join
+          "\n"
+          (eduction
+           (map-indexed (fn [i memory]
+                          (str i ". " memory)))
+           memories)))))
 
 ;; stonks
 (defn list-stonks [{}]
@@ -1098,6 +1122,7 @@
     ;; memories
     "list_core_memories" #'list-core-memories
     "form_core_memory" #'form-core-memory
+    "forget_core_memory" #'forget-core-memory
     ;; stonks
     "list_stonks" #'list-stonks
     "get_stonks_balance" #'get-stonks-balance
@@ -1592,6 +1617,16 @@
        "properties"
        {"memory" {"type" "string",
                   "description" "The memory you will remember in future conversations."}}}}}
+    {"type" "function",
+     "function"
+     {"name" "forget_core_memory",
+      "description" "Forgets a core memory given its index.",
+      "parameters"
+      {"type" "object",
+       "required" ["memory_index"]
+       "properties"
+       {"memory_index" {"type" "integer",
+                        "description" "The index of the memory."}}}}}
 
     {"type" "function",
      "function"
@@ -1777,7 +1812,11 @@
                     (str "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question.\n\n"
 
                          "Your core memories are:\n"
-                         (str/join "\n" core-memories)))
+                         (str/join "\n"
+                                   (eduction
+                                    (map-indexed (fn [i memory]
+                                                   (str i ". " memory)))
+                                    core-memories))))
           ;; else, don't change
           messages)]
     messages))
