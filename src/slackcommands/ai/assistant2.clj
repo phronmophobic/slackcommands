@@ -1925,6 +1925,9 @@
                 new-message {:role "user"
                              :content (into content
                                             attachments)}
+                new-message (if-let [username (:slack/username prompt-request)]
+                              (assoc new-message :name username)
+                              new-message)
 
                 messages (conj messages new-message)
                 ch (run-prompt prompt-request messages)

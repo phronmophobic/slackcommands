@@ -86,6 +86,7 @@
       :slack/channel channel
       :slack/new-thread? (not thread-ts)
       :slack/user-id user-id
+      :slack/username (slack/username user-id)
       :prompt text
       :attachments attachments})
 
