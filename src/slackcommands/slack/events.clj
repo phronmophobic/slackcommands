@@ -11,7 +11,7 @@
 
 (defn strip-prefix [prompt]
   (-> prompt 
-      (str/replace #"^@U01729B7HC5[ ]*" "")
+      (str/replace #"^@realmonsters[ ]*" "")
       (str/trim)) )
 
 (def my-id "U01729B7HC5")
