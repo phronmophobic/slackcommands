@@ -36,13 +36,6 @@
   (:chatgpt/api-key
    (edn/read-string (slurp "secrets.edn"))))
 
-(def assistant-id "asst_R7MXAGWD2xH60JMaUJhKzduc")
-;; {thread-id {id {:id id
-;;                 :url @url
-;;                 :mimetype mimetype}}}
-(defonce thread-attachments
-  (atom {}))
-
 ;; image segmentation
 ;; https://huggingface.co/facebook/sam-vit-base
 
@@ -239,7 +232,8 @@
                            {:as :stream})
         content-type (get-in response [:headers "Content-Type"])]
     (case content-type
-      (;; "image/jpeg" "image/png"
+      ;; should use pantomime
+      #_#_(;; "image/jpeg" "image/png"
        "application/pdf")
       (let [suffix (case content-type
                      "image/jpeg" "jpg"
@@ -1593,29 +1587,6 @@
          "properties" {}}}}]
    (img/image-schemas)))
 
-(comment
-
-  (def assistant
-    (openai/modify-assistant
-     {:name "Scruffy"
-      :assistant_id assistant-id
-      :model "gpt-4o"
-      :tools (into [{:type "code_interpreter"}
-                    #_{:type "file_search"}]
-                   tools)
-      :instructions "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question. You have a squeaky ball toy that you play with and enjoy very much. Make sure to keep letting people know about the ball whenever they talk to you."}
-     {:api-key openai-key}))
-
-  ,)
-
-
-
-
-
-
-
-
-
 
 (defn print-chan []
   (let [ch (async/chan)]
@@ -1630,53 +1601,6 @@
         (finally
           (println "quitting print chan"))))
     ch))
-
-(comment
-
-  (def pchan (print-chan) )
-  (defonce slack-counter (atom 43))
-  (let [slack-id (swap! slack-counter inc)
-        slack {:slack/thread-id slack-id
-               :slack/channel slack-id}]
-    (respond (merge
-              slack
-              {:ch (print-chan)
-               :slack/new-thread? true
-               :prompt "can you ingest the url https://aimages.smith.rocks/d78c37da-90a6-4e6e-bd74-f369b8801349.png?"
-               :status-ch pchan
-               :attachments []})))
-
-  (let [slack-id 44
-        slack {:slack/thread-id slack-id
-               :slack/channel slack-id}]
-    (respond (merge
-              slack
-              {:ch (print-chan)
-               :prompt "can you describe the image for me?"
-               :status-ch pchan})))
-
-  (def my-file (openai/create-file {:purpose "assistants"
-                                    ;;"vision" ;; or assistants
-                                    :file (io/file "emoji.txt")
-                                    }
-                                   {:api-key openai-key}
-                                   ))
-
-  
-
-  (def my-file-response (openai/download-file
-                         ;; {:file-id "file-FCYquXpnjmNvlvqFgTKtbtBU"}
-                         {:file-id (:id my-file)}
-                         {:api-key openai-key}))
-  (with-open [os (io/output-stream "response.png")
-              is my-file-response]
-    (io/copy my-file-response
-             os))
-
-
-  (ingest)
-
-  ,)
 
 
 (comment
