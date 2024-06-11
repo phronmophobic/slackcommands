@@ -17,6 +17,29 @@
 (def conn 
   {:api-url "https://slack.com/api" :token slack-oauth-token})
 
+(defn user-info*
+  "Interesting keys
+  :profile {:display_name}
+  "
+  [uid]
+  (:user (users/info conn uid)))
+
+(let [f (memoize user-info*)]
+  (defn user-info
+    "Interesting keys
+  :profile {:display_name}
+  "
+    [uid]
+    (f uid)))
+
+(defn username [uid]
+  (let [uinfo (user-info uid)
+        profile (:profile uinfo)
+        name (:display_name profile)]
+    (if (seq name)
+      name
+      (:real_name profile))))
+
 (defmulti block->text #(get % "type"))
 (defmethod block->text "rich_text" [block]
   (str/join
@@ -55,7 +78,7 @@
     (get block "elements"))))
 
 (defmethod block->text "user" [block]
-  (str "@" (get block "user_id")))
+  (str "@" (username (get block "user_id"))))
 
 (def slack-message-regex
   #"https://realmonsters.slack.com/archives/([^/]+)/p([0-9]{10})([0-9]+)(\?.*)?")
@@ -141,7 +164,7 @@
        "\n---------------\n"
        (eduction
         (map (fn [msg]
-               (str "@" (get msg "user") ": \n"
+               (str "@" (username (get msg "user")) ": \n"
                     (blocks->text (get msg "blocks")))))
         (get replies "messages"))))))
 
@@ -181,29 +204,7 @@
        first
        :id))
 
-(defn user-info*
-  "Interesting keys
-  :profile {:display_name}
-  "
-  [uid]
-  (:user (users/info conn uid)))
 
-(let [f (memoize user-info*)]
-  (defn user-info
-    "Interesting keys
-  :profile {:display_name}
-  "
-    [uid]
-    (f uid)))
-
-
-(defn username [uid]
-  (let [uinfo (user-info uid)
-        profile (:profile uinfo)
-        name (:display_name profile)]
-    (if (seq name)
-      name
-      (:real_name profile))))
 
 (defn list-emoji []
   (:emoji (emoji/list conn)))
