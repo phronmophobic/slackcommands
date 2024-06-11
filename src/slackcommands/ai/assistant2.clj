@@ -36,6 +36,12 @@
   (:chatgpt/api-key
    (edn/read-string (slurp "secrets.edn"))))
 
+(def thread-table "thread-table")
+(defonce db
+  (delay
+    (doto (d/open-kv (.getCanonicalPath (io/file "threadkv.db")))
+      (d/open-dbi thread-table))))
+
 ;; image segmentation
 ;; https://huggingface.co/facebook/sam-vit-base
 
@@ -923,6 +929,30 @@
     (str "Here is the polygon file: " url)))
 
 
+(defn core-memories* []
+  (d/get-value @db thread-table ::core-memories))
+
+(defn list-core-memories [{}]
+  (let [core-memories (core-memories*)]
+    (if (seq core-memories)
+      (str
+       "Your core memories are:\n"
+       (clojure.string/join "\n" core-memories))
+      "You have no core memories.")))
+
+(defn form-core-memory [{:strs [memory]}]
+  (let [memory (truncate memory 256)
+        memories (or (d/get-value @db thread-table ::core-memories)
+                     [])
+        memories (if (> (count memories) 4)
+                   (subvec memories 0 4)
+                   memories)
+        memories (if (= (count memories) 4)
+                   (assoc memories (rand-int 4) memory)
+                   (conj memories memory))]
+    (d/transact-kv @db [[:put thread-table ::core-memories memories]])
+    "Core memory formed."))
+
 ;; stonks
 (defn list-stonks [{}]
   (json/write-str
@@ -1052,6 +1082,9 @@
     "feature_request" #'feature-request
     "publish_html" #'publish-html
     "update_frosthaven_save" #'update-frosthaven-save
+    ;; memories
+    "list_core_memories" #'list-core-memories
+    "form_core_memory" #'form-core-memory
     ;; stonks
     "list_stonks" #'list-stonks
     "get_stonks_balance" #'get-stonks-balance
@@ -1518,6 +1551,25 @@
 
     {"type" "function",
      "function"
+     {"name" "list_core_memories",
+      "description" "Retrieve the core memories you have formed.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {}}}}
+    {"type" "function",
+     "function"
+     {"name" "form_core_memory",
+      "description" "A new core memory will be formed that you will remember in future conversations.",
+      "parameters"
+      {"type" "object",
+       "required" ["memory"]
+       "properties"
+       {"memory" {"type" "string",
+                  "description" "The memory you will remember in future conversations."}}}}}
+
+    {"type" "function",
+     "function"
      {"name" "list_stonks",
       "description" "List the currently held stonk positions.",
       "parameters"
@@ -1690,6 +1742,21 @@
                 {:type "text"
                  :text (subs s index)}))))))
 
+(defn include-core-memories [messages]
+  (let [_ (when (not (= "system" (:role (first messages))))
+            (println "expected system message!"))
+        core-memories (core-memories*)
+        messages
+        (if (seq core-memories)
+          (assoc-in messages [0 :content]
+                    (str "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question.\n\n"
+
+                         "Your core memories are:\n"
+                         (str/join "\n" core-memories)))
+          ;; else, don't change
+          messages)]
+    messages))
+
 (defn run-prompt*
   "Makes a call to chat completion. Streams result to `result-ch`. Does not process tool calls."
   [messages]
@@ -1699,7 +1766,7 @@
             (try
               [nil
                (openai/create-chat-completion {:model "gpt-4o"
-                                               :messages messages
+                                               :messages (include-core-memories messages)
                                                #_[{:role "system" :content "You are a helpful assistant."}
                                                   {:role "user" :content "can you generate 3 images of cats using dalle?"}]
                                                :tools 
@@ -1798,11 +1865,7 @@
                 {:role "user" :content "Can you farble for me? try again if it fails"}] ))
   ,)
 
-(def thread-table "thread-table")
-(defonce db
-  (delay
-    (doto (d/open-kv (.getCanonicalPath (io/file "threadkv.db")))
-      (d/open-dbi thread-table))))
+
 
 (defn load-thread [thread-key]
   (d/get-value @db thread-table thread-key))
@@ -1818,7 +1881,9 @@
           (let [stored-messages (load-thread thread-key)
                 messages (or stored-messages
                              [{:role "system"
-                               :content "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question. You have a squeaky ball toy that you play with and enjoy very much. Make sure to keep letting people know about the ball whenever they talk to you."}])
+                               ;; overwritten in run-prompt*
+                               ;; :content "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question. You have a squeaky ball toy that you play with and enjoy very much. Make sure to keep letting people know about the ball whenever they talk to you."
+                               }])
 
                 attachments (->> (:attachments prompt-request)
                                  (filter (fn [{:keys [mimetype]}]
