@@ -529,6 +529,18 @@
                     :content (attachment-content args)}]}
       "No thread found for that thread id.")))
 
+(defn delete-message [{:strs [thread_id]}]
+  (let [[_ channel-id thread-id] (str/split thread_id #"-")
+        thread-id (if (str/starts-with? thread-id "p")
+                    (subs thread-id 1)
+                    thread-id)
+        {:keys [ok error]} (slack/delete-message channel-id thread-id)]
+    (if ok
+      "Done!"
+      (do
+        (prn "there was a delete error: " error)
+        "There was an error."))))
+
 (defn examine-image [{:strs [url]
                       :keys [slack/channel slack/thread-id]}]
   (let [url (util/maybe-download-slack-url url)
@@ -1074,6 +1086,7 @@
     "animate" #'animate
     ;; "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
+    "delete_message" #'delete-message
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
     "treat_stats" #'treat-stats
@@ -1268,6 +1281,18 @@
      "function"
      {"name" "retrieve_thread",
       "description" "Returns the transcript for the thread with the given thread id. If no thread_id provided, returns the transcript for the current thread.",
+      "parameters"
+      {"type" "object",
+       ;; "required" ["thread_id"]
+       "properties"
+       {"thread_id" {"type" "string",
+                     "pattern" "^thread-[^-]+-[^-]+$"
+                     "description" "A thread id."}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "delete_message",
+      "description" "Deletes a previously sent slack message.",
       "parameters"
       {"type" "object",
        ;; "required" ["thread_id"]

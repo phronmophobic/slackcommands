@@ -58,7 +58,8 @@
   (str "@" (get block "user_id")))
 
 (def slack-message-regex
-  #"https://realmonsters.slack.com/archives/([^/]+)/p([0-9]{10})([0-9]+)")
+  #"https://realmonsters.slack.com/archives/([^/]+)/p([0-9]{10})([0-9]+)(\?.*)?")
+
 (defmethod block->text "link" [block]
   (let [url (get block "url")]
     (if-let [[url channel-id ts1 ts2] (re-matches slack-message-regex url)]
@@ -242,6 +243,9 @@
     (:messages
      (conversations/replies conn channel-id thread-id))))
   )
+
+(defn delete-message [channel-id thread-id]
+  (chat/delete conn thread-id channel-id))
 
 (comment
   (conversations/list conn 
