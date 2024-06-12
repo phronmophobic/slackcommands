@@ -1216,15 +1216,6 @@
     
     {"type" "function",
      "function"
-     {"name" "farble",
-      "description" "Farbles.",
-      "parameters"
-      {"type" "object",
-       "properties"
-       {},}}}
-
-    {"type" "function",
-     "function"
      {"name" "read_url_link",
       "description" "Reads the link give by url",
       "parameters"
@@ -1252,7 +1243,7 @@
        "properties"
        {}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "ingest_url",
       "description" "Downloads the url and adds the file to the current thread.",
@@ -1263,7 +1254,7 @@
                "description" "A URL that points to file to ingest."},},
        "required" ["url"]}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "load_images",
       "description" "Loads the URLs and includes in them in the thread.",
@@ -1365,7 +1356,7 @@
        {"url" {"type" "string",
                "description" "A url to an image to examine and find objects."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "label_image",
       "description" "Returns a table of labels that might be associated with the image at `url`.",
@@ -1376,7 +1367,7 @@
        {"url" {"type" "string",
                "description" "A url to an image find labels for."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "extract_text",
       "description" "Runs OCR on the provided url and extracts any text that can be found.",
@@ -1412,7 +1403,7 @@
        {"html" {"type" "string",
                 "description" "An html string to publish."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "run_llava",
       "description" "Answers a prompt about a given image url.",
@@ -1495,7 +1486,7 @@
                  "pattern" "^:.*:$"
                  "description" "An emoij short name."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "generate_music",
       "description" "Generates 8 short music clips from a prompt.",
