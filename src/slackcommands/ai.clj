@@ -572,6 +572,7 @@ See <https://docs.midjourney.com/docs/models> for more options.
                                      "image_url" url
                                      "footer" (str title "(" i ")")}))
                                  (map vector ["top" "bottom"] img-urls)))}))
+                      ;; channel doesn't support sending updates
                       (let [[top bottom] (split-large-png url)]
                         (send-new (midjourney-image-response text top "top"))
                         (send-new (midjourney-image-response text bottom "bottom")))))
