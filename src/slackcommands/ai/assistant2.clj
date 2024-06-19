@@ -957,7 +957,7 @@
          core-memories)))
       "You have no core memories.")))
 
-(defn form-core-memory [{:strs [memory]}]
+(defn add-core-memory [{:strs [memory]}]
   (let [memory (truncate memory 256)
         memories (or (d/get-value @db thread-table ::core-memories)
                      [])
@@ -968,7 +968,13 @@
                    (assoc memories (rand-int 4) memory)
                    (conj memories memory))]
     (d/transact-kv @db [[:put thread-table ::core-memories memories]])
-    "Core memory formed."))
+    (str "Core memories updated. Your core memories are now:"
+         (clojure.string/join
+          "\n"
+          (eduction
+           (map-indexed (fn [i memory]
+                          (str i ". " memory)))
+           (core-memories*))))))
 
 (defn forget-core-memory [{:strs [memory_index]}]
   (let [memories (or (d/get-value @db thread-table ::core-memories)
@@ -1121,7 +1127,7 @@
     "update_frosthaven_save" #'update-frosthaven-save
     ;; memories
     "list_core_memories" #'list-core-memories
-    "form_core_memory" #'form-core-memory
+    "add_core_memory" #'add-core-memory
     "forget_core_memory" #'forget-core-memory
     ;; stonks
     "list_stonks" #'list-stonks
@@ -1593,15 +1599,15 @@
     {"type" "function",
      "function"
      {"name" "list_core_memories",
-      "description" "Retrieve the core memories you have formed.",
+      "description" "Retrieve the core memories you have added.",
       "parameters"
       {"type" "object",
        "properties"
        {}}}}
     {"type" "function",
      "function"
-     {"name" "form_core_memory",
-      "description" "A new core memory will be formed that you will remember in future conversations.",
+     {"name" "add_core_memory",
+      "description" "A new core memory will be added that you will remember in future conversations.",
       "parameters"
       {"type" "object",
        "required" ["memory"]
