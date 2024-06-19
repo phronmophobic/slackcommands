@@ -19,6 +19,17 @@
 (amazonica/defcredential s3-creds)
 (def bucket "aimages-smith-rocks")
 
+(defn slurp-bytes
+  [x]
+  (with-open [out (java.io.ByteArrayOutputStream.)]
+    (clojure.java.io/copy (clojure.java.io/input-stream x) out)
+    (.toByteArray out)))
+
+(defn url->bytes [url]
+  (let [response (client/get url
+                             {:as :byte-array})]
+    (:body response)))
+
 (defn upload-file
   ([fname metadata]
    (let [f (io/file fname)
@@ -129,7 +140,8 @@
 
 (defn save-and-upload-large-png [url]
   (binding [skia/*image-cache* (atom {})]
-    (let [view (ui/image (io/as-url url))
+    (let [bs (url->bytes url)
+          view (ui/image bs)
           fname (str (random-uuid) ".jpg")
           f (io/file aimage-dir fname)]
       (skia/save-image (.getAbsolutePath f)
@@ -139,8 +151,8 @@
 
 (defn split-large-png [url]
   (binding [skia/*image-cache* (atom {})]
-    (let [
-          view (ui/image (io/as-url url))
+    (let [bs (url->bytes url)
+          view (ui/image bs)
           [w h] (ui/bounds view)
           half-height (int (/ h 2))
           top (ui/scissor-view [0 0]
@@ -168,8 +180,8 @@
 
 (defn split4-large-png [url]
   (binding [skia/*image-cache* (atom {})]
-    (let [
-          view (ui/image (io/as-url url))
+    (let [bs (url->bytes url)
+          view (ui/image bs)
           [w h] (ui/bounds view)
           half-height (quot h 2)
           half-width (quot w 2)
