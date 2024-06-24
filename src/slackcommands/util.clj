@@ -26,7 +26,8 @@
     (.toByteArray out)))
 
 (defn url->bytes [url]
-  (let [response (client/get url
+  (slurp-bytes (io/as-url url))
+  #_(let [response (client/get url
                              {:as :byte-array})]
     (:body response)))
 
