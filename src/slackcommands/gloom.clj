@@ -722,6 +722,9 @@
     (character? token)
     {:character x}
 
+    (contains? tla->xws (str/upper-case token))
+    {:character (get tla->xws (str/upper-case token))}
+
     (re-find #"\"([^\"]+)\"" token)
     {:text (str/lower-case (second x))}
 
