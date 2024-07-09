@@ -787,7 +787,7 @@
                   command
                   (assoc command
                          :character party))
-        command (if (:level command)
+        #_#_command (if (:level command)
                   command
                   (assoc command
                          :level 1))]
