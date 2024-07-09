@@ -18,12 +18,14 @@
             [slackcommands.ai.vision :as vision]
             [slackcommands.emoji :as emoji]
             [slackcommands.db :as db]
+            [amazonica.aws.s3 :as s3]
             [clj-slack.chat :as chat]
             [membrane.ui :as ui]
             [datalevin.core :as d]
             [pantomime.mime :as mime]
             pantomime.media
             pantomime.web
+            pantomime.extract
             [clojure.java.io :as io]
             [clj-http.client :as client]
             [clojure.string :as str])
@@ -213,9 +215,13 @@
         response (openai/create-transcription
             {:model "whisper-1"
              :file (fix-audio f)}
-            {:api-key openai-key})]
-    (json/write-str response)
-    #_(:text response)))
+            {:api-key openai-key})
+        text (:text response)
+        url (util/save-and-upload-stream
+             (str "transcription-" (random-uuid) ".text")
+             (java.io.ByteArrayInputStream.
+              (.getBytes url "utf-8")))]
+    (str "The transcription can be found at " url)))
 
 (comment
   (def myresult
@@ -238,6 +244,10 @@
                            {:as :stream})
         content-type (get-in response [:headers "Content-Type"])]
     (case content-type
+      "application/pdf"
+      (-> (:body response)
+          pantomime.extract/parse
+          :text)
       ;; should use pantomime
       #_#_(;; "image/jpeg" "image/png"
        "application/pdf")
@@ -391,6 +401,36 @@
                 :content "The attachments will be listed."}
                {:role "user"
                 :content (attachment-content args)}]})
+
+(defn sanitize-url-name [s]
+  (-> s
+      (truncate 32)
+      (str/replace #"[^A-Za-z0-9-_.]" "-")))
+
+
+(defn upload-url [{:strs [url path]}]
+  (let [fname (if path
+                (sanitize-url-name path)
+                (let [mt (mime/mime-type-of url)
+                      ext (mime/extension-for-name mt)]
+                  (str (random-uuid)
+                       ext)))
+        url (util/maybe-download-slack-url url)
+        ;; prefix with u/ for all user generated urls.
+        key (str "u/" fname)
+        
+        uploaded-url (str "https://" "aimages.smith.rocks/" key)
+
+        ;; must download file for put-object
+        ;; it accepts input streams, but not
+        ;; the kind opened with io/as-url
+        ;; also, this gives a check on file sizes uploaded
+        ;; files that are too large will fill up the local disk and break.
+        f (util/url->file fname url)]
+    (s3/put-object util/bucket
+                   key
+                   f)
+    (str "The url has been uploaded to: " uploaded-url)))
 
 (defn ingest-url [{:strs [url]
                    :as args}]
@@ -1100,6 +1140,7 @@
     "transcribe" #'transcribe
     "list_attachments" #'list-attachments
     ;; "ingest_url" #'ingest-url
+    "upload_url" #'upload-url
     "load_images" #'load-images
     "read_url_link" #'link-reader
     "send_to_main" #'send-to-main
@@ -1258,6 +1299,19 @@
        "properties"
        {"url" {"type" "string",
                "description" "A URL that points to file to ingest."},},
+       "required" ["url"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "upload_url",
+      "description" "Uploads the url and returns a publically available url.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"url" {"type" "string",
+               "description" "A URL to upload."}
+        "path" {"type" "string",
+                "description" "The name of the path for the created url."}},
        "required" ["url"]}}}
 
     #_{"type" "function",
