@@ -154,7 +154,7 @@
   ;; 1. start server
   (def server2 (server/run-server #'my-app {:port 3000}))
   ;; did you start with `authbind --deep`?
-  (def server2 (server/run-server #'my-app {:port 80}))
+  ;; (def server2 (server/run-server #'my-app {:port 80}))
 
   (comment
     ;; 2. run. did you start with xvfb-run?
