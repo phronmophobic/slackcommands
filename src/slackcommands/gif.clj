@@ -7,8 +7,6 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [membrane.java2d :as java2d]
-            [membrane.skia :as skia]
-            [membrane.skia.paragraph :as para]
             [slackcommands.util :as util]))
 
 
@@ -178,7 +176,7 @@
     (str "https://" "aimages.smith.rocks/" (.getName outf))))
 
 
-;; doesn't quite work. needs background color for para/paragraph
+
 (defn scrollgif [{:keys [text]
                   :as opts}]
   (let [fps (get opts :fps 24)
@@ -187,60 +185,47 @@
         [w h] [50 50]
 
         
-        lbl (para/paragraph {:text text
-                             :style #:text-style {:font-size 35}})
-        image-file (util/temp-file "label" ".png")
-        image-path (.getCanonicalPath image-file)
-        _ (skia/save-image image-path
-                           lbl)
+        lbl (ui/label text
+                      (ui/font nil 35))
 
-        img (ui/image image-path)
-        [iw ih] (ui/bounds img)
+        [lw lh ] (ui/bounds lbl)
         speed (get opts :speed 4)
         num-frames (quot (+ (* 2 w)
-                            iw)
+                            lw)
                          speed)
         
         frames
         (eduction
          (map (fn [i]
                 [(ui/translate -1 -1
-                               (ui/filled-rectangle [1 1 1]
+                               (ui/filled-rectangle [0 0 0]
                                                     (+ w 2)
                                                     (+ h 2)))
 
                  (ui/translate (- w (* speed i))
-                               (quot (- h ih)
-                                     2)
-                               img)]))
+                               0
+                               (ui/with-color [1 1 1]
+                                lbl))]))
          (range num-frames))
         
         media
         (gif/graphics->media
          (fn [g view]
-           
-           (java2d/draw-to-graphics g view)
-           ;; fix for weird transparency issue in ffmpeg
-           ;; https://www.reddit.com/r/ffmpeg/comments/qwmh56/glitch_when_creating_transparent_animated_gifs/
-           #_(when (get opts :transparency? true)
-               (.clearRect g (dec gif-width) (dec gif-height) 1 1)))
+           (java2d/draw-to-graphics g view))
          {:fps fps
           :width w
           :height h}
          frames)
 
-        tempf (util/temp-file "scrollgif" ".gif")]
+        outf (io/file util/aimage-dir
+                      (str (random-uuid) ".gif"))]
     (gif/save-gif!
      media
-     "scroll.gif"
-     #_(.getCanonicalPath tempf)
+     (.getCanonicalPath outf)
      opts)
     
-    #_(shrink-gif* (clj-media/file tempf) opts outf)
-    #_(util/upload-file outf)
-    #_(str "https://" "aimages.smith.rocks/" (.getName outf))
-    (.getCanonicalPath tempf)
-    ))
+    (util/upload-file outf)
+    (str "https://" "aimages.smith.rocks/" (.getName outf))))
 
 (comment
 
