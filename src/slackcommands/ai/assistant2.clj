@@ -18,12 +18,14 @@
             [slackcommands.ai.vision :as vision]
             [slackcommands.emoji :as emoji]
             [slackcommands.db :as db]
+            [amazonica.aws.s3 :as s3]
             [clj-slack.chat :as chat]
             [membrane.ui :as ui]
             [datalevin.core :as d]
             [pantomime.mime :as mime]
             pantomime.media
             pantomime.web
+            pantomime.extract
             [clojure.java.io :as io]
             [clj-http.client :as client]
             [clojure.string :as str])
@@ -213,9 +215,13 @@
         response (openai/create-transcription
             {:model "whisper-1"
              :file (fix-audio f)}
-            {:api-key openai-key})]
-    (json/write-str response)
-    #_(:text response)))
+            {:api-key openai-key})
+        text (:text response)
+        url (util/save-and-upload-stream
+             (str "transcription-" (random-uuid) ".text")
+             (java.io.ByteArrayInputStream.
+              (.getBytes url "utf-8")))]
+    (str "The transcription can be found at " url)))
 
 (comment
   (def myresult
@@ -238,6 +244,10 @@
                            {:as :stream})
         content-type (get-in response [:headers "Content-Type"])]
     (case content-type
+      "application/pdf"
+      (-> (:body response)
+          pantomime.extract/parse
+          :text)
       ;; should use pantomime
       #_#_(;; "image/jpeg" "image/png"
        "application/pdf")
@@ -361,36 +371,73 @@
   (let [[channel-id thread-id] (if thread_id
                                  (let [[_ channel-id thread-id] (str/split thread_id #"-")]
                                    [channel-id thread-id])
-                                 [channel thread-id])]
-    (into [{:type "text"
-            :text "Here are the attachments:\n"}]
-          (comp
-           (mapcat (fn [{:keys [url name mimetype]}]
-                     (let [url (util/maybe-download-slack-url url)
-                           messages [{:type "text"
-                                      :text url}]
-                           messages (if (or (and mimetype
-                                                 (pantomime.media/image? mimetype))
-                                            (and url
-                                                 (pantomime.media/image?
-                                                  (mime/mime-type-of url))))
-                                      (conj messages {:type "image_url"
-                                                      :image_url {:url url}})
-                                      messages)]
-                       messages)))
-           (interpose {:type "text"
-                       :text "\n"}))
-          (slack/thread-attachments channel-id thread-id))))
+                                 [channel thread-id])
+        thread-attachments (slack/thread-attachments channel-id thread-id)]
+    (if (seq thread-attachments)
+      (into [{:type "text"
+              :text "Here are the attachments:\n"}]
+            (comp
+             (mapcat (fn [{:keys [url name mimetype]}]
+                       (let [url (util/maybe-download-slack-url url)
+                             messages [{:type "text"
+                                        :text url}]
+                             messages (if (or (and mimetype
+                                                   (pantomime.media/image? mimetype))
+                                              (and url
+                                                   (pantomime.media/image?
+                                                    (mime/mime-type-of url))))
+                                        (conj messages {:type "image_url"
+                                                        :image_url {:url url}})
+                                        messages)]
+                         messages)))
+             (interpose {:type "text"
+                         :text "\n"}))
+            thread-attachments)
+      ;; no attachments
+      nil)))
 
 (defn list-attachments [{:keys [slack/channel
                                 slack/thread-id]
                          tool-call-id :tool-call/id
                          :as args}]
-  {::messages [{:tool_call_id tool-call-id
-                :role "tool"
-                :content "The attachments will be listed."}
-               {:role "user"
-                :content (attachment-content args)}]})
+  (let [attachment-content (attachment-content args)]
+    (if (seq attachment-content)
+      {::messages [{:tool_call_id tool-call-id
+                    :role "tool"
+                    :content "The attachments will be listed."}
+                   {:role "user"
+                    :content (attachment-content args)}]}
+      "No attachments were found.")))
+
+(defn sanitize-url-name [s]
+  (-> s
+      (truncate 32)
+      (str/replace #"[^A-Za-z0-9-_.]" "-")))
+
+
+(defn upload-url [{:strs [url path]}]
+  (let [fname (if path
+                (sanitize-url-name path)
+                (let [mt (mime/mime-type-of url)
+                      ext (mime/extension-for-name mt)]
+                  (str (random-uuid)
+                       ext)))
+        url (util/maybe-download-slack-url url)
+        ;; prefix with u/ for all user generated urls.
+        key (str "u/" fname)
+        
+        uploaded-url (str "https://" "aimages.smith.rocks/" key)
+
+        ;; must download file for put-object
+        ;; it accepts input streams, but not
+        ;; the kind opened with io/as-url
+        ;; also, this gives a check on file sizes uploaded
+        ;; files that are too large will fill up the local disk and break.
+        f (util/url->file fname url)]
+    (s3/put-object util/bucket
+                   key
+                   f)
+    (str "The url has been uploaded to: " uploaded-url)))
 
 (defn ingest-url [{:strs [url]
                    :as args}]
@@ -521,13 +568,29 @@
             [channel-id thread-id])
           [channel thread-id])]
     (if-let [s (slack/retrieve-thread channel-id thread-id)]
-      {::messages [{:tool_call_id tool-call-id
-                    :role "tool"
-                    :content (str "The attachments will be listed. Below is a transcript of the thread.\n\n"
-                                  s)}
-                   {:role "user"
-                    :content (attachment-content args)}]}
+      (let [attachment-content (attachment-content args)]
+        (if (seq attachment-content)
+          {::messages [{:tool_call_id tool-call-id
+                        :role "tool"
+                        :content (str "The attachments will be listed. Below is a transcript of the thread.\n\n"
+                                      s)}
+                       {:role "user"
+                        :content attachment-content}]}
+          (str "Below is a transcript of the thread.\n\n"
+               s)))
       "No thread found for that thread id.")))
+
+(defn delete-message [{:strs [thread_id]}]
+  (let [[_ channel-id thread-id] (str/split thread_id #"-")
+        thread-id (if (str/starts-with? thread-id "p")
+                    (subs thread-id 1)
+                    thread-id)
+        {:keys [ok error]} (slack/delete-message channel-id thread-id)]
+    (if ok
+      "Done!"
+      (do
+        (prn "there was a delete error: " error)
+        "There was an error."))))
 
 (defn examine-image [{:strs [url]
                       :keys [slack/channel slack/thread-id]}]
@@ -937,10 +1000,15 @@
     (if (seq core-memories)
       (str
        "Your core memories are:\n"
-       (clojure.string/join "\n" core-memories))
+       (clojure.string/join
+        "\n"
+        (eduction
+         (map-indexed (fn [i memory]
+                        (str i ". " memory)))
+         core-memories)))
       "You have no core memories.")))
 
-(defn form-core-memory [{:strs [memory]}]
+(defn add-core-memory [{:strs [memory]}]
   (let [memory (truncate memory 256)
         memories (or (d/get-value @db thread-table ::core-memories)
                      [])
@@ -951,7 +1019,32 @@
                    (assoc memories (rand-int 4) memory)
                    (conj memories memory))]
     (d/transact-kv @db [[:put thread-table ::core-memories memories]])
-    "Core memory formed."))
+    (str "Core memories updated. Your core memories are now:"
+         (clojure.string/join
+          "\n"
+          (eduction
+           (map-indexed (fn [i memory]
+                          (str i ". " memory)))
+           (core-memories*))))))
+
+(defn forget-core-memory [{:strs [memory_index]}]
+  (let [memories (or (d/get-value @db thread-table ::core-memories)
+                     [])
+        memories (into []
+                       (comp
+                        (keep-indexed (fn [i memory]
+                                        (when (not= i memory_index)
+                                          memory)))
+                        (take 4))
+                       memories)]
+    (d/transact-kv @db [[:put thread-table ::core-memories memories]])
+    (str "Core memories updated. Your core memories are now:"
+         (clojure.string/join
+          "\n"
+          (eduction
+           (map-indexed (fn [i memory]
+                          (str i ". " memory)))
+           memories)))))
 
 ;; stonks
 (defn list-stonks [{}]
@@ -1058,6 +1151,7 @@
     "transcribe" #'transcribe
     "list_attachments" #'list-attachments
     ;; "ingest_url" #'ingest-url
+    "upload_url" #'upload-url
     "load_images" #'load-images
     "read_url_link" #'link-reader
     "send_to_main" #'send-to-main
@@ -1074,6 +1168,7 @@
     "animate" #'animate
     ;; "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
+    "delete_message" #'delete-message
     "slackify_gif" #'slackify-gif
     "treat_dispenser" #'treat-dispenser
     "treat_stats" #'treat-stats
@@ -1084,7 +1179,8 @@
     "update_frosthaven_save" #'update-frosthaven-save
     ;; memories
     "list_core_memories" #'list-core-memories
-    "form_core_memory" #'form-core-memory
+    "add_core_memory" #'add-core-memory
+    "forget_core_memory" #'forget-core-memory
     ;; stonks
     "list_stonks" #'list-stonks
     "get_stonks_balance" #'get-stonks-balance
@@ -1178,15 +1274,6 @@
     
     {"type" "function",
      "function"
-     {"name" "farble",
-      "description" "Farbles.",
-      "parameters"
-      {"type" "object",
-       "properties"
-       {},}}}
-
-    {"type" "function",
-     "function"
      {"name" "read_url_link",
       "description" "Reads the link give by url",
       "parameters"
@@ -1214,7 +1301,7 @@
        "properties"
        {}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "ingest_url",
       "description" "Downloads the url and adds the file to the current thread.",
@@ -1226,6 +1313,19 @@
        "required" ["url"]}}}
 
     {"type" "function",
+     "function"
+     {"name" "upload_url",
+      "description" "Uploads the url and returns a publically available url.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"url" {"type" "string",
+               "description" "A URL to upload."}
+        "path" {"type" "string",
+                "description" "The name of the path for the created url."}},
+       "required" ["url"]}}}
+
+    #_{"type" "function",
      "function"
      {"name" "load_images",
       "description" "Loads the URLs and includes in them in the thread.",
@@ -1276,6 +1376,18 @@
                      "pattern" "^thread-[^-]+-[^-]+$"
                      "description" "A thread id."}}}}}
 
+    {"type" "function",
+     "function"
+     {"name" "delete_message",
+      "description" "Deletes a previously sent slack message.",
+      "parameters"
+      {"type" "object",
+       ;; "required" ["thread_id"]
+       "properties"
+       {"thread_id" {"type" "string",
+                     "pattern" "^thread-[^-]+-[^-]+$"
+                     "description" "A thread id."}}}}}
+
 
     {"type" "function",
      "function"
@@ -1315,7 +1427,7 @@
        {"url" {"type" "string",
                "description" "A url to an image to examine and find objects."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "label_image",
       "description" "Returns a table of labels that might be associated with the image at `url`.",
@@ -1326,7 +1438,7 @@
        {"url" {"type" "string",
                "description" "A url to an image find labels for."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "extract_text",
       "description" "Runs OCR on the provided url and extracts any text that can be found.",
@@ -1362,7 +1474,7 @@
        {"html" {"type" "string",
                 "description" "An html string to publish."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "run_llava",
       "description" "Answers a prompt about a given image url.",
@@ -1445,7 +1557,7 @@
                  "pattern" "^:.*:$"
                  "description" "An emoij short name."}}}}}
 
-    {"type" "function",
+    #_{"type" "function",
      "function"
      {"name" "generate_music",
       "description" "Generates 8 short music clips from a prompt.",
@@ -1552,21 +1664,31 @@
     {"type" "function",
      "function"
      {"name" "list_core_memories",
-      "description" "Retrieve the core memories you have formed.",
+      "description" "Retrieve the core memories you have added.",
       "parameters"
       {"type" "object",
        "properties"
        {}}}}
     {"type" "function",
      "function"
-     {"name" "form_core_memory",
-      "description" "A new core memory will be formed that you will remember in future conversations.",
+     {"name" "add_core_memory",
+      "description" "A new core memory will be added that you will remember in future conversations.",
       "parameters"
       {"type" "object",
        "required" ["memory"]
        "properties"
        {"memory" {"type" "string",
                   "description" "The memory you will remember in future conversations."}}}}}
+    {"type" "function",
+     "function"
+     {"name" "forget_core_memory",
+      "description" "Forgets a core memory given its index.",
+      "parameters"
+      {"type" "object",
+       "required" ["memory_index"]
+       "properties"
+       {"memory_index" {"type" "integer",
+                        "description" "The index of the memory."}}}}}
 
     {"type" "function",
      "function"
@@ -1752,7 +1874,11 @@
                     (str "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question.\n\n"
 
                          "Your core memories are:\n"
-                         (str/join "\n" core-memories)))
+                         (str/join "\n"
+                                   (eduction
+                                    (map-indexed (fn [i memory]
+                                                   (str i ". " memory)))
+                                    core-memories))))
           ;; else, don't change
           messages)]
     messages))
@@ -1900,6 +2026,9 @@
                 new-message {:role "user"
                              :content (into content
                                             attachments)}
+                new-message (if-let [username (:slack/username prompt-request)]
+                              (assoc new-message :name username)
+                              new-message)
 
                 messages (conj messages new-message)
                 ch (run-prompt prompt-request messages)

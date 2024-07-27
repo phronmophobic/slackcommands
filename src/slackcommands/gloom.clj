@@ -722,6 +722,9 @@
     (character? token)
     {:character x}
 
+    (contains? tla->xws (str/upper-case token))
+    {:character (get tla->xws (str/upper-case token))}
+
     (re-find #"\"([^\"]+)\"" token)
     {:text (str/lower-case (second x))}
 
@@ -784,7 +787,7 @@
                   command
                   (assoc command
                          :character party))
-        command (if (:level command)
+        #_#_command (if (:level command)
                   command
                   (assoc command
                          :level 1))]

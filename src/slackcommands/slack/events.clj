@@ -11,7 +11,7 @@
 
 (defn strip-prefix [prompt]
   (-> prompt 
-      (str/replace #"^@U01729B7HC5[ ]*" "")
+      (str/replace #"^@realmonsters[ ]*" "")
       (str/trim)) )
 
 (def my-id "U01729B7HC5")
@@ -86,6 +86,7 @@
       :slack/channel channel
       :slack/new-thread? (not thread-ts)
       :slack/user-id user-id
+      :slack/username (slack/username user-id)
       :prompt text
       :attachments attachments})
 
