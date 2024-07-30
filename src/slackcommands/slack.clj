@@ -164,8 +164,16 @@
        "\n---------------\n"
        (eduction
         (map (fn [msg]
-               (str "@" (username (get msg "user")) ": \n"
-                    (blocks->text (get msg "blocks")))))
+               (let [nm (cond
+                          (#{"B0179RR57PW"
+                             "B016WU770AJ"} (get msg "bot_id")) 
+                          "realmonsters"
+
+                          (get msg "user") (username (get msg "user"))
+
+                          :else "unknown")]
+                (str "@" nm ": \n"
+                     (blocks->text (get msg "blocks"))))))
         (get replies "messages"))))))
 
 (defn thread-attachments [channel-id thread-id]

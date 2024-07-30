@@ -406,7 +406,7 @@
                     :role "tool"
                     :content "The attachments will be listed."}
                    {:role "user"
-                    :content (attachment-content args)}]}
+                    :content attachment-content}]}
       "No attachments were found.")))
 
 (defn sanitize-url-name [s]
