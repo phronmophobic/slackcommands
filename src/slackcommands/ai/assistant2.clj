@@ -661,6 +661,11 @@
              "without cropping: "url-uncropped "\n"))
       "An image_url or emoji must be provided.")))
 
+(defn scrollgif [{:strs [text]
+                     :as m}]
+  (let [url (gif/scrollgif {:text text})]
+    (str "Here is the scrollgif: " url)))
+
 (defn label-image [{:strs [url]}]
   (let [labels (vision/label-image (util/maybe-download-slack-url url))]
     (if (seq labels)
@@ -1159,6 +1164,7 @@
     "examine_image" #'examine-image
     "label_image" #'label-image
     "rustle_image" #'rustle-image
+    "scrollgif" #'scrollgif
     "extract_text" #'extract-text
     ;; "computer_enhance_image" #'computer-enhance-image
     ;; "run_llava" #'run-llava
@@ -1544,6 +1550,16 @@
                "description" "The number of frames per second."
                "minimum" 1
                "maximum" 24}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "scrollgif",
+      "description" "Creates a scrollgif of some text",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"text" {"type" "string",
+                "description" "Some text to scroll inside a gif."}}}}}
 
     {"type" "function",
      "function"
