@@ -18,6 +18,9 @@
             [slackcommands.ai.vision :as vision]
             [slackcommands.emoji :as emoji]
             [slackcommands.db :as db]
+            [slackcommands.stability :as stability]
+            [slackcommands.yt-dlp :as yt-dlp]
+            [slackcommands.flux :as flux]
             [amazonica.aws.s3 :as s3]
             [clj-slack.chat :as chat]
             [membrane.ui :as ui]
@@ -233,7 +236,7 @@
          args ["--json"
                "-"
                :in (.getBytes html "utf-8")]
-         {:keys [out]} (apply sh/sh readability-cli args)]
+      {:keys [out]} (apply sh/sh readability-cli args)]
   (json/read-str out)
      ))
   ,)
@@ -341,6 +344,14 @@
                                   (str i ". " url)))
                    paths)))
 
+      ("flux-pro"
+       "flux-schnell"
+       "flux-dev"
+       "flux")
+      (let [url (flux/generate-image {:model (keyword using)
+                                      :prompt prompt})]
+        url)
+
       ;; else
       (let [response (discord/create-image prompt)]
         (if-let [url (:url response)]
@@ -351,6 +362,18 @@
                                       (str i ". " url)))
                        img-urls)))
           (throw (ex-info "Error" response)))))))
+
+
+(defn generate-3d-model [{:strs [image_url] :as m}]
+  (prn "input" m)
+  (let [url (stability/stable3d {:image-url image_url})]
+    (str "Here is the model: " url ".")))
+
+(defn image-edit-with-replacement [{:strs [image_url prompt search_prompt]}]
+  (let [url (stability/search-and-replace {:image-url image_url
+                                           :prompt prompt
+                                           :search-prompt search_prompt})]
+    (str "Here is the edited image: " url ".")))
 
 (defonce feature-request-lock (Object.))
 (defn feature-request [{:strs [feature_description]}]
@@ -438,6 +461,9 @@
                    key
                    f)
     (str "The url has been uploaded to: " uploaded-url)))
+
+(defn download-video [{:strs [url]}]
+  (yt-dlp/download-vid url))
 
 (defn ingest-url [{:strs [url]
                    :as args}]
@@ -708,7 +734,9 @@
     (str "Here are the image without the background: " url)))
 
 (defn generate-music [{:strs [prompt]}]
-  (let [paths (nubes/generate-music prompt)]
+  (let [url (flux/generate-audio {:prompt prompt})]
+    (str "Here is the music clip: " url))
+  #_(let [paths (nubes/generate-music prompt)]
     (str "Here are the music clips:\n"
          (str/join "\n"
                    (eduction
@@ -1152,10 +1180,13 @@
 (def tool-fns
   (into
    {"generate_images" #'generate-image
+    "generate_3d_model" #'generate-3d-model
+    "image_edit_with_replacement" #'image-edit-with-replacement
     "text_to_speech" #'text-to-speech
     "transcribe" #'transcribe
     "list_attachments" #'list-attachments
     ;; "ingest_url" #'ingest-url
+    "download_video" #'download-video
     "upload_url" #'upload-url
     "load_images" #'load-images
     "read_url_link" #'link-reader
@@ -1316,6 +1347,18 @@
        "properties"
        {"url" {"type" "string",
                "description" "A URL that points to file to ingest."},},
+       "required" ["url"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "download_video",
+      "description" "Downloads the video from the provided url.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"url" {"type" "string",
+               "pattern" "^http.*"
+               "description" "A URL that points to video to download."},},
        "required" ["url"]}}}
 
     {"type" "function",
@@ -1647,13 +1690,42 @@
        {"prompt" {"type" "string",
                   "description" "A prompt that describes the picture to be generated"}
         "using" {"type" "string",
-                 "enum" ["dalle", "midjourney", "pixel-art-xl"]
+                 "enum" ["dalle", "midjourney", "pixel-art-xl" "flux" "flux-pro" "flux-schnell" "flux-dev"]
                  "description" "The service to use when generating an image."}
         "urls" {"type" "array"
                 "description" "A list of urls to base the generated image on."
                 "items" {"type" "string",
                          "description" "The service to use when generating an image."}},},
        "required" ["prompt"]}}}
+    {"type" "function",
+     "function"
+     {"name" "generate_3d_model",
+      "description" "Given an image, creates a 3d model.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "An image of an object to turn into a 3d model."}
+        ,},
+       "required" ["image_url"]}}}
+    {"type" "function",
+     "function"
+     {"name" "image_edit_with_replacement",
+      "description" "Searches for the search prompt and replaces it with prompt.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "An image containing content you wish to replace."}
+        "prompt" {"type" "string",
+                  "description" "What you wish to see in the output image."}
+        "search_prompt" {"type" "string",
+                         "description" "A short description of the content that should be replaced in the provided image."}
+        ,},
+       "required" ["image_url" "prompt" "search_prompt"]}}}
+
     {"type" "function",
      "function"
      {"name" "text_to_speech",

@@ -85,6 +85,9 @@
    (ANY "/midjourney" []
      ai/midjourney-image-command)
 
+   (ANY "/flux" []
+     ai/flux-image-command)
+
    #_(GET "/aimages/ss.jpg"
          []
        (do

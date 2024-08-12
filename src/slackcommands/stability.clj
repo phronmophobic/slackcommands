@@ -283,3 +283,47 @@ Example:
     urls))
 
 
+;; curl -f -sS "https://api.stability.ai/v2beta/3d/stable-fast-3d" \
+;;   -H "authorization: Bearer sk-MYAPIKEY" \
+;;   -F image=@"./cat-statue.png" \
+;;   -o "./3d-cat-statue.glb"
+
+(defn stable3d [{:keys [image-url] :as m}]
+  (prn m)
+  (let [f (or (util/url->local image-url)
+              (util/url->file (str (random-uuid))
+                              image-url))
+        response
+        (with-open [is (io/input-stream f)]
+          (client/post (str base-api-url "/v2beta/3d/stable-fast-3d")
+                       {:headers {"Authorization" (str "Bearer " api-key)}
+                        :multipart
+                        [{:name "image" :content is}]
+                        :as :stream}))
+        fname (str (random-uuid) ".glb")]
+
+    (util/save-and-upload-stream fname (:body response))))
+
+
+(defn search-and-replace [{:keys [image-url prompt search-prompt]}]
+  (let [f (or (util/url->local image-url)
+              (util/url->file (str (random-uuid))
+                              image-url))
+        response
+        (with-open [is (io/input-stream f)]
+          (client/post (str base-api-url "/v2beta/stable-image/edit/search-and-replace")
+                       {:headers {"Authorization" (str "Bearer " api-key)}
+                        :multipart
+                        [{:name "prompt" :content prompt}
+                         {:name "search_prompt" :content search-prompt}
+                         {:name "output_format" :content "jpeg"}
+                         {:name "image" :content is}]
+                        :as :stream}))
+        fname (str (random-uuid) ".jpg")]
+    (util/save-and-upload-stream fname (:body response))))
+
+;; curl -f -sS "https://api.stability.ai/v2beta/3d/stable-fast-3d" \
+;;   -H "authorization: Bearer sk-MYAPIKEY" \
+;;   -F image=@"./cat-statue.png" \
+;;   -o "./3d-cat-statue.glb"
+
