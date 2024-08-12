@@ -2102,9 +2102,22 @@
                 attachments (->> (:attachments prompt-request)
                                  (filter (fn [{:keys [mimetype]}]
                                            (pantomime.media/image? mimetype)))
-                                 (map (fn [{:keys [url]}]
-                                        {:type "image_url"
-                                         :image_url {:url @url}})))
+                                 (map :url)
+                                 (map deref)
+                                 #_(mapcat (fn [{:keys [url]}]
+                                             [{:type "image_url"
+                                             :image_url {:url @url}}
+                                            {:type "text"
+                                             :text @url}])))
+                attachment-content (when (seq attachments)
+                                     (into [{:type "text"
+                                             :text "\nattachments:\n"}]
+                                           (mapcat (fn [url]
+                                                     [{:type "image_url"
+                                                       :image_url {:url url}}
+                                                      {:type "text"
+                                                       :text (str "(" url ")\n")}]))
+                                           attachments))
                 prompt-text (if (or stored-messages
                                     (:slack/new-thread? prompt-request))
                               (:prompt prompt-request)
@@ -2113,7 +2126,7 @@
 
                 new-message {:role "user"
                              :content (into content
-                                            attachments)}
+                                            attachment-content)}
                 new-message (if-let [username (:slack/username prompt-request)]
                               (assoc new-message :name username)
                               new-message)
