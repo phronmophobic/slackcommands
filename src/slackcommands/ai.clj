@@ -10,6 +10,7 @@
             [slackcommands.stability :as stability]
             [slackcommands.slack :as slack]
             [slackcommands.clip :as clip]
+            [slackcommands.flux :as flux]
             [clj-slack.chat :as slack-chat]
             [clojure.zip :as z]
             [clojure.edn :as edn]
@@ -582,6 +583,38 @@ See <https://docs.midjourney.com/docs/models> for more options.
                 {"response_type" "in_channel"})
          :headers {"Content-type" "application/json"}
          :status 200}))))
+
+(defn flux-image-command [request]
+  (let [text (get-in request [:form-params "text"])
+        channel-id (get-in request [:form-params "channel_id"])
+        response-url (get-in request [:form-params "response_url"])
+        user-id (get-in request [:form-params "user_id"])]
+
+    (println "flux: " text)
+    (when (seq (clojure.string/trim text))
+      (future
+        (wrap-exception2
+            {:channel-id channel-id
+             :response-url response-url}
+            (str ":waiting-cat: " text)
+          (let [prompt (str/trim text)
+                url (flux/generate-image {:prompt prompt
+                                          :model :flux-pro} )]
+            (let [title (truncate-from-end text 82)]
+              (if send-update
+                (send-update
+                 {"attachments"
+                  (json/write-str
+                   [{"fallback" title
+                     "image_url" url
+                     "footer" title}])})
+                ;; channel doesn't support sending updates
+                (send-new (dalle3-image-response prompt url))))))))
+
+    {:body (json/write-str
+            {"response_type" "in_channel"})
+     :headers {"Content-type" "application/json"}
+     :status 200}))
 
 (defn find-nearest [text]
   @(.submit
