@@ -40,14 +40,14 @@
                       key
                       is
                       metadata))
-     (str "https://" "aimages.smith.rocks/" fname)))
+     (str "https://" "aimages.smith.rocks/" key)))
   ([fname]
    (let [f (io/file fname)
          key (.getName f)]
      (s3/put-object bucket
                     key
                     f)
-     (str "https://" "aimages.smith.rocks/" fname))))
+     (str "https://" "aimages.smith.rocks/" key))))
 
 (def aimage-dir
   (doto (io/file "aimages")
