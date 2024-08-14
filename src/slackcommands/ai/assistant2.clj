@@ -221,9 +221,9 @@
             {:api-key openai-key})
         text (:text response)
         url (util/save-and-upload-stream
-             (str "transcription-" (random-uuid) ".text")
+             (str "transcription-" (random-uuid) ".txt")
              (java.io.ByteArrayInputStream.
-              (.getBytes url "utf-8")))]
+              (.getBytes text "utf-8")))]
     (str "The transcription can be found at " url)))
 
 (comment
