@@ -1625,10 +1625,10 @@
                  "pattern" "^:.*:$"
                  "description" "An emoij short name."}}}}}
 
-    #_{"type" "function",
+    {"type" "function",
      "function"
      {"name" "generate_music",
-      "description" "Generates 8 short music clips from a prompt.",
+      "description" "Generates a short music clip from a prompt.",
       "parameters"
       {"type" "object",
        "required" ["prompt"]
