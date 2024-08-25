@@ -3,6 +3,7 @@
             [clj-http.client :as client]
             [clj-slack.chat :as chat]
             [slackcommands.util :as util]
+            [slackcommands.util.audio :as util.audio]
             [clojure.core.async :as async]
             [clojure.string :as str]
             [slackcommands.ai.assistant2 :as assistant]
@@ -75,9 +76,18 @@
                               (str (subs text 0 60) "..."))
 
         audio-prompt? (and (empty? text)
-                           (some #(util/audio? (:mimetype %)) attachments))
+                           (some (fn [attachment]
+                                   (when (util/audio? (:mimetype attachment))
+                                     (prn attachment)
+                                     @(:url attachment)))
+                                 attachments))
         text (if audio-prompt?
-               "Transcribe the attached audio and follow the instructions."
+               ;;"Transcribe the attached audio and follow the instructions."
+               (try
+                 (util.audio/transcribe-url audio-prompt?)
+                 (catch Exception e
+                   (prn e)
+                   "There was an error transcribing the audio."))
                text)]
     ;; (clojure.pprint/pprint event)
     (assistant/respond

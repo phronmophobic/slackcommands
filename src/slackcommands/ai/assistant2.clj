@@ -12,6 +12,7 @@
             [com.phronemophobic.nubes :as nubes]
             [com.phronemophobic.alpaca :as alpaca]
             [slackcommands.util :as util]
+            [slackcommands.util.audio :as util.audio]
             [slackcommands.gif :as gif]
             [slackcommands.ai.img :as img]
             [slackcommands.slack :as slack]
@@ -198,28 +199,10 @@
         url (util/save-and-upload-stream fname is)]
     url))
 
-
-;; not all audio formats are transcrible.
-;; eg. iphone created audio.
-(defn fix-audio [f]
-  (let [output (io/file "/var/tmp/transcribe.mp3")]
-    (clj-media/write!
-     (->> (clj-media/file (.getCanonicalPath f))
-          (clj-media/filter-audio))
-     (.getCanonicalPath output))
-    output))
-
 (defn transcribe [{:strs [url]}]
-  (let [url (util/maybe-download-slack-url url)
-        f (or (util/url->local url)
-              (util/url->file (str (random-uuid))
-                              url))
-        _ (prn "transcribing" f (.exists f))
-        response (openai/create-transcription
-            {:model "whisper-1"
-             :file (fix-audio f)}
-            {:api-key openai-key})
-        text (:text response)
+  (let [
+        text (util.audio/transcribe-url url)
+        ;; todo: inline text response if short
         url (util/save-and-upload-stream
              (str "transcription-" (random-uuid) ".txt")
              (java.io.ByteArrayInputStream.
