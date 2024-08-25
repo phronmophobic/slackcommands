@@ -78,7 +78,6 @@
         audio-prompt? (and (empty? text)
                            (some (fn [attachment]
                                    (when (util/audio? (:mimetype attachment))
-                                     (prn attachment)
                                      @(:url attachment)))
                                  attachments))
         text (if audio-prompt?
