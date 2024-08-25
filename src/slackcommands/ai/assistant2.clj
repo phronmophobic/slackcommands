@@ -346,6 +346,12 @@
                        img-urls)))
           (throw (ex-info "Error" response)))))))
 
+(defn create-illusion [{:strs [prompt image_url]}]
+  (let [url (flux/generate-image {:model :illusion-diffusion
+                                  :image-url image_url
+                                  :prompt prompt})]
+    url))
+
 
 (defn generate-3d-model [{:strs [image_url] :as m}]
   (prn "input" m)
@@ -638,8 +644,11 @@
             objs))))
       "No objects found.")))
 
-(defn computer-enhance-image [{:strs [image_url]}]
-  (let [url (nubes/enhance (util/maybe-download-slack-url image_url))]
+(defn computer-enhance-image [{:strs [image_url model]}]
+  (let [url (flux/upscale {:image-url image_url
+                           :model (keyword model)})]
+      (str "Here is the enhanced image:" url))
+  #_(let [url (nubes/enhance (util/maybe-download-slack-url image_url))]
     (str "Here is the enhanced image:" url)))
 
 (defn slackify-gif [{:strs [url]}]
@@ -728,15 +737,26 @@
                     paths)))))
 
 
-(defn animate [{:strs [image_urls]}]
-  (let [image_urls (map util/maybe-download-slack-url image_urls)
+(defn animate [{:strs [image_url prompt model]}]
+  (let [url (flux/animate {:image-url image_url
+                           :model (keyword model)
+                           :prompt prompt})]
+    (str "Here is the animation: " url)
+    )
+  #_(let [image_urls (map util/maybe-download-slack-url image_urls)
         urls (nubes/stable-video-diffusion image_urls)]
-    (str "Here are the animations:\n"
+      (str "Here are the animations:\n"
          (str/join "\n"
                    (eduction
                     (map-indexed (fn [i url]
                                    (str i ". " url)))
                     urls)))))
+
+
+(defn talking-head [{:strs [image_url audio_url]}]
+  (let [url (flux/sadtalker {:image-url image_url
+                             :audio-url audio_url})]
+    (str "Here is the animation: " url)))
 
 (def treats
   {":bone:" "Virtual Bones: Crunchy and satisfying, they're the classic choice for any dog-inspired assistant's digital snack drawer."
@@ -1163,6 +1183,7 @@
 (def tool-fns
   (into
    {"generate_images" #'generate-image
+    "create_illusion" #'create-illusion
     "generate_3d_model" #'generate-3d-model
     "image_edit_with_replacement" #'image-edit-with-replacement
     "text_to_speech" #'text-to-speech
@@ -1180,12 +1201,13 @@
     "rustle_image" #'rustle-image
     "scrollgif" #'scrollgif
     "extract_text" #'extract-text
-    ;; "computer_enhance_image" #'computer-enhance-image
+    "computer_enhance_image" #'computer-enhance-image
     ;; "run_llava" #'run-llava
     ;; "resketch" #'resketch
     "remove_image_background" #'remove-image-background
     "generate_music" #'generate-music
     "animate" #'animate
+    "talking_head" #'talking-head
     ;; "dimentiate" #'dimentiate
     "retrieve_thread" #'retrieve-thread
     "delete_message" #'delete-message
@@ -1520,17 +1542,21 @@
         "prompt" {"type" "string",
                   "description" "A question about the provided image url."}}}}}
 
-    #_{"type" "function",
+    {"type" "function",
      "function"
      {"name" "computer_enhance_image",
-      "description" "Enhances an image to be less blurry.",
+      "description" "Upscales an image",
       "parameters"
       {"type" "object",
        "required" ["image_url"]
        "properties"
        {"image_url" {"type" "string",
                      "pattern" "^http.*"
-                     "description" "A url to an image to enhance."}}}}}
+                     "description" "A url to an image to enhance."}
+        "model" {"type" "string",
+                 "enum" ["clarity-upscaler" "creative-upscaler"]
+                 "description" "The model to use when upscaling"
+                 "default" "clarity-upscaler"}}}}}
 
     {"type" "function",
      "function"
@@ -1639,17 +1665,41 @@
     {"type" "function",
      "function"
      {"name" "animate",
-      "description" "Animates one or images into videos at the same time.",
+      "description" "Animates an image into a video.",
       "parameters"
       {"type" "object",
-       "required" ["image_urls"]
+       "required" ["image_url"]
        "properties"
-       {"image_urls" 
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "A url to an image to animate"}
+        "model" {"type" "string",
+                 "enum" ["animate-diff" "stable-video"]
+                 "description" "The model to use when animating an image."
+                 "default" "animate-diff"}
+        "prompt" {"type" "string",
+                  "description" "A description to guide the animation"}
+        #_#_"image_urls" 
         {"type" "array"
          "description" "A list of image urls to animate."
          "items" {"type" "string",
                   "pattern" "^http.*"
                   "description" "A url to an image to animate."}}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "talking_head",
+      "description" "Animates a talking head given some speech",
+      "parameters"
+      {"type" "object",
+       "required" ["image_url" "audio_url"]
+       "properties"
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "A url to an image to animate"}
+        "audio_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "A url to an audio file containing speech."}}}}}
 
     #_{"type" "function",
      "function"
@@ -1680,6 +1730,21 @@
                 "items" {"type" "string",
                          "description" "The service to use when generating an image."}},},
        "required" ["prompt"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "create_illusion",
+      "description" "Creates an illusion based off the provided image and prompt",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"prompt" {"type" "string",
+                  "description" "A prompt that describes the illusion."}
+        "image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "An image of an object to base the illusion on."},},
+       "required" ["prompt" "image_url"]}}}
+
     {"type" "function",
      "function"
      {"name" "generate_3d_model",
