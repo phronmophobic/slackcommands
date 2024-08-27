@@ -780,8 +780,8 @@
                          :expansion ["Gloomhaven"
                                      "Frosthaven"
                                      "Jaws Of The Lion"]))
-        party ["painconduit"
-               "blinkblade"
+        party ["infuser"
+               "metalmosaic"
                "pyroclast"]
         command (if (:character command)
                   command
