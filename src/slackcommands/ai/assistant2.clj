@@ -22,6 +22,7 @@
             [slackcommands.stability :as stability]
             [slackcommands.yt-dlp :as yt-dlp]
             [slackcommands.flux :as flux]
+            [slackcommands.perplexity :as perplexity]
             [amazonica.aws.s3 :as s3]
             [clj-slack.chat :as chat]
             [membrane.ui :as ui]
@@ -711,6 +712,24 @@
 (defn run-llava [{:strs [prompt image_url]}]
   (nubes/run-llava prompt (util/maybe-download-slack-url image_url)))
 
+(defn search-the-internet [{:strs [prompt]}]
+  (let [response (perplexity/chat-completions
+                  {:messages [{:role "system"
+                               :content "Be precise and concise."}
+                              {:role "user"
+                               :content prompt}]})
+        text (->> response
+                  :choices
+                  (map :message)
+                  (filter #(= "assistant" (:role %)))
+                  (map :content)
+                  first)]
+    (when-not text
+      (throw (ex-info "No response for web search?"
+                      {:prompt prompt
+                       :response response})))
+    text))
+
 
 #_(defn resketch [{:strs [prompt image_url]}]
   (let [urls (nubes/generate-sketch prompt (util/maybe-download-slack-url image_url))]
@@ -1201,6 +1220,7 @@
     "rustle_image" #'rustle-image
     "scrollgif" #'scrollgif
     "extract_text" #'extract-text
+    "search_the_internet" #'search-the-internet
     "computer_enhance_image" #'computer-enhance-image
     ;; "run_llava" #'run-llava
     ;; "resketch" #'resketch
@@ -1503,6 +1523,17 @@
        {"url" {"type" "string",
                "pattern" "^http.*"
                "description" "A url to an image to extract text from."}}}}}
+
+    {"type" "function",
+     "function"
+     {"name" "search_the_internet",
+      "description" "Searches the internet for the latest news and info.",
+      "parameters"
+      {"type" "object",
+       "required" ["prompt"]
+       "properties"
+       {"prompt" {"type" "string",
+                  "description" "A question to answer based on an internet search."}}}}}
 
 
     {"type" "function",
