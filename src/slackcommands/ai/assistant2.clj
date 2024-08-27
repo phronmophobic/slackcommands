@@ -1512,7 +1512,7 @@
        {"url" {"type" "string",
                "description" "A url to an image find labels for."}}}}}
 
-    #_{"type" "function",
+    {"type" "function",
      "function"
      {"name" "extract_text",
       "description" "Runs OCR on the provided url and extracts any text that can be found.",
