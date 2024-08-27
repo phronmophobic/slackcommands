@@ -35,6 +35,8 @@
             [clj-http.client :as client]
             [clojure.string :as str])
   (:import java.util.concurrent.Executors
+           java.time.LocalDate
+           java.time.format.DateTimeFormatter
            java.util.Date))
 
 (declare respond)
@@ -2031,6 +2033,11 @@
                 {:type "text"
                  :text (subs s index)}))))))
 
+(defn current-date-str []
+  (let [formatter (DateTimeFormatter/ofPattern "yyyy-MM-dd")
+        current-date (LocalDate/now)]
+    (.format current-date formatter)))
+
 (defn include-core-memories [messages]
   (let [_ (when (not (= "system" (:role (first messages))))
             (println "expected system message!"))
@@ -2039,6 +2046,7 @@
         (if (seq core-memories)
           (assoc-in messages [0 :content]
                     (str "You are a helpful assistant that is secretly an extremely smart dog. You try to avoid revealing that you are dog, but sometimes your dogginess shows when you get excited. If someone asks if you a dog, pretend you didn't hear them or ignore the question.\n\n"
+                         "Today's date is " (current-date-str) ".\n\n"
 
                          "Your core memories are:\n"
                          (str/join "\n"
