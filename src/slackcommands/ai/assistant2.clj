@@ -1952,11 +1952,13 @@
                                     :messages [{:role "system" :content "You are a helpful assistant."}
                                                ;; {:role "user" :content "can you generate 3 images of cats using dalle?"}
                                                {:role "user" :content "hello"}]
-                                    :tools tools
-                                    :stream true}
+                                    ;; :tools tools
+                                    :stream true
+                                    :stream/close? true}
 
                                    {:api-key openai-key}))
 
+  (async/pipe response (print-chan) true)
 
   (def messages (async/<!! (async/into [] response)))
 
@@ -2075,7 +2077,8 @@
                                                     (filter (fn [tool]
                                                               (let [tool-name (get-in tool ["function" "name"])]
                                                             (contains? tool-fns tool-name)))))
-                                               :stream true}
+                                               :stream true
+                                               :stream/close? true}
 
                                               {:api-key openai-key})]
               (catch Exception e

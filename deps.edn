@@ -24,7 +24,7 @@
         ;; com.github.ben-manes.caffeine/caffeine {:mvn/version "3.1.6"}
         net.clojars.wkok/openai-clojure {;; :mvn/version "0.14.0"
                                          :git/url "https://github.com/phronmophobic/openai-clojure"
-                                         :git/sha "776806ab6b0da4f359b74f9da85095a637610207"
+                                         :git/sha "36ddb3547ef2decfc45f93e3a31eecf107e5a359"
                                          ;;:local/root "../openai-clojure"
                                          }
 
