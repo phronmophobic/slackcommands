@@ -349,6 +349,10 @@
                        img-urls)))
           (throw (ex-info "Error" response)))))))
 
+(defn generate-video [{:strs [prompt]}]
+  (let [url (flux/generate-video {:prompt prompt})]
+    url))
+
 (defn create-illusion [{:strs [prompt image_url]}]
   (let [url (flux/generate-image {:model :illusion-diffusion
                                   :image-url image_url
@@ -1204,6 +1208,7 @@
 (def tool-fns
   (into
    {"generate_images" #'generate-image
+    "generate_video" #'generate-video
     "create_illusion" #'create-illusion
     "generate_3d_model" #'generate-3d-model
     "image_edit_with_replacement" #'image-edit-with-replacement
@@ -1762,6 +1767,17 @@
                 "description" "A list of urls to base the generated image on."
                 "items" {"type" "string",
                          "description" "The service to use when generating an image."}},},
+       "required" ["prompt"]}}}
+
+    {"type" "function",
+     "function"
+     {"name" "generate_video",
+      "description" "Generates a video given a prompt",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"prompt" {"type" "string",
+                  "description" "A prompt that describes the picture to be generated"}},
        "required" ["prompt"]}}}
 
     {"type" "function",
