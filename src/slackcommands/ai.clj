@@ -220,7 +220,9 @@
 
     ;; default
     (let [response (api/create-chat-completion {:model
-                                                "gpt-4o"
+                                                "o1-preview"
+                                                ;; "o1-mini"
+                                                ;; "gpt-4o"
                                                 ;; "gpt-3.5-turbo"
                                                 :messages messages}
                                                {:api-key api-key})
