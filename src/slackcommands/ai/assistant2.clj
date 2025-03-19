@@ -2193,6 +2193,15 @@
 (defn save-thread [thread-key thread]
   (d/transact-kv @db [[:put thread-table thread-key thread]]))
 
+;; user message names must match the regex ^[a-zA-Z0-9_-]+$
+;; this doesn't seem to be documented anywhere
+(defn sanitize-name [nm]
+  (let [;; replace spaces with underscores
+        nm (str/replace nm #" " "_")
+        ;; replace everything else with "-"
+        nm (str/replace nm #"[^a-zA-Z0-9_-]" "-")]
+    nm))
+
 (defn thread-runner [thread-key in-ch]
   (async/thread
     (try
@@ -2234,7 +2243,7 @@
                              :content (into content
                                             attachment-content)}
                 new-message (if-let [username (:slack/username prompt-request)]
-                              (assoc new-message :name username)
+                              (assoc new-message :name (sanitize-name username))
                               new-message)
 
                 messages (conj messages new-message)
