@@ -12,6 +12,16 @@
             [membrane.ui :as ui])
   (:import java.io.File))
 
+(defonce datalog* (atom []))
+(defn log [msg]
+  (swap! datalog*
+               (fn [log]
+                 (vec 
+                  (take-last 100
+                             (conj log msg)))))
+  nil)
+
+
 (def s3-creds
   {:profile "aimages"
    :endpoint "us-west-1"})

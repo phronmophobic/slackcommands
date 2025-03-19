@@ -150,7 +150,8 @@
                     (if chunk
                       (cond
                         (instance? Exception chunk)
-                        (update-message cursor "uhoh.")
+                        (do (update-message cursor "uhoh.")
+                            (util/log chunk))
 
                         (:tool_calls chunk)
                         (let [tool-calls

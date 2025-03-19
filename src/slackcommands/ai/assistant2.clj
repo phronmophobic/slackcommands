@@ -2244,7 +2244,8 @@
           thread-key))
       (catch Exception e
         (prn "thread runner exceptoin")
-        (prn-truncate e)))))
+        (prn-truncate e)
+        (util/log e)))))
 
 (defn start-coordinator
   "Returns a channel to sends prompts to.
