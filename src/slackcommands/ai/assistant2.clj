@@ -2134,7 +2134,8 @@
       (let [[err chunks-ch]
             (try
               [nil
-               (openai/create-chat-completion {:model "gpt-4o"
+               (openai/create-chat-completion {:model "gpt-4.1"
+                                               ;; "gpt-4o"
                                                :messages (include-core-memories messages)
                                                #_[{:role "system" :content "You are a helpful assistant."}
                                                   {:role "user" :content "can you generate 3 images of cats using dalle?"}]
