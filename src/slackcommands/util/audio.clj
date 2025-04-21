@@ -29,7 +29,8 @@
               (util/url->file (str (random-uuid))
                               url))
         mime-type (mime/mime-type-of f)
-        _ (when (not (pantomime.media/audio? mime-type))
+        _ (when (and (not (pantomime.media/audio? mime-type))
+                     (not (pantomime.media/video? mime-type)))
             (throw (ex-info "URL must be audio mimetype."
                             {:url url})))
         ;; todo check mimetype of url.
