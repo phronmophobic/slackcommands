@@ -2149,7 +2149,10 @@
                                               {:api-key openai-key})]
               (catch Exception e
                 (prn "chat exception")
-                (println (-> e ex-data :body slurp))
+                (util/log {:chat-exception e})
+                (try (println (-> e ex-data :body slurp))
+                     (catch Exception e2
+                       (prn e2)))
                 [e nil]))]
         (if err
           (do
