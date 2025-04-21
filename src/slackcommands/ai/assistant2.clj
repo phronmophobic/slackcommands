@@ -296,7 +296,8 @@
                               using
                               urls]}]
   (let [prompt (if (and (seq urls)
-                        (not= "dalle" using))
+                        (or (nil? using)
+                            (= using "midjourney")))
                  (str (str/join " "
                                 (map util/maybe-download-slack-url urls))
                       " "
@@ -333,9 +334,16 @@
       ("flux-pro"
        "flux-schnell"
        "flux-dev"
-       "flux")
-      (let [url (flux/generate-image {:model (keyword using)
-                                      :prompt prompt})]
+       "flux"
+       "plushify"
+       "cartoonify"
+       "ideogram")
+      (let [opts {:model (keyword using)
+                  :prompt prompt}
+            opts (if (seq urls)
+                   (assoc opts :image-url (first urls))
+                   opts)
+            url (flux/generate-image opts)]
         url)
 
       ;; else
@@ -369,6 +377,11 @@
   (let [url (stability/search-and-replace {:image-url image_url
                                            :prompt prompt
                                            :search-prompt search_prompt})]
+    (str "Here is the edited image: " url ".")))
+
+(defn image-edit [{:strs [image_url prompt]}]
+  (let [url (flux/image-edit {:image-url image_url
+                              :prompt prompt})]
     (str "Here is the edited image: " url ".")))
 
 (defonce feature-request-lock (Object.))
@@ -750,16 +763,31 @@
   (let [url (nubes/remove-background (util/maybe-download-slack-url image_url))]
     (str "Here are the image without the background: " url)))
 
-(defn generate-music [{:strs [prompt]}]
-  (let [url (flux/generate-audio {:prompt prompt})]
-    (str "Here is the music clip: " url))
-  #_(let [paths (nubes/generate-music prompt)]
-    (str "Here are the music clips:\n"
-         (str/join "\n"
-                   (eduction
-                    (map-indexed (fn [i url]
-                                   (str i ". " url)))
-                    paths)))))
+(defn generate-music [{:strs [audio_url prompt lyrics]
+                       :as opts}]
+  (when (and lyrics
+             (not (or audio_url
+                      prompt)))
+    (throw (ex-info "generating music with lyrics requires an audio url or prompt."
+                    {:opts opts})))
+  (when (and (not lyrics)
+             (not prompt))
+    (throw (ex-info "generating music without lyrics requires a prompt"
+                    {:opts opts})))
+  (let [
+        url
+        (if lyrics
+          (let [
+                audio-url (if audio_url
+                            (util/maybe-download-slack-url audio_url)
+                            (flux/generate-audio {:prompt prompt
+                                                  :model :music-generator}))]
+            (flux/generate-audio {:prompt lyrics
+                                  :model :minimax-music
+                                  :audio-url audio-url}))
+          (flux/generate-audio {:prompt prompt
+                                :model :music-generator}))]
+    (str "Here is the music clip: " url)))
 
 
 (defn animate [{:strs [image_url prompt model]}]
@@ -1212,6 +1240,7 @@
     "create_illusion" #'create-illusion
     "generate_3d_model" #'generate-3d-model
     "image_edit_with_replacement" #'image-edit-with-replacement
+    "image_edit" #'image-edit
     "text_to_speech" #'text-to-speech
     "transcribe" #'transcribe
     "list_attachments" #'list-attachments
@@ -1669,10 +1698,16 @@
       "description" "Generates a short music clip from a prompt.",
       "parameters"
       {"type" "object",
-       "required" ["prompt"]
+       ;; "required" ["prompt"]
        "properties"
        {"prompt" {"type" "string",
-                  "description" "A short description used to guide the generation of the music clips."}}}}}
+                  "description" "A short description used to guide the generation of the music clips."}
+        ;; "lyrics" {"type" "string",
+        ;;           "description" "Lyrics to include in the music generation."}
+        ;; "audio_url" {"type" "string",
+        ;;              "pattern" "^http.*"
+        ;;              "description" "A reference music file to add lyrics to."}
+        }}}}
 
     #_{"type" "function",
      "function"
@@ -1761,7 +1796,7 @@
        {"prompt" {"type" "string",
                   "description" "A prompt that describes the picture to be generated"}
         "using" {"type" "string",
-                 "enum" ["dalle", "midjourney", "pixel-art-xl" "flux" "flux-pro" "flux-schnell" "flux-dev"]
+                 "enum" ["dalle", "midjourney", "pixel-art-xl" "flux" "flux-pro" "flux-schnell" "flux-dev" "plushify" "cartoonify" "ideogram"]
                  "description" "The service to use when generating an image."}
         "urls" {"type" "array"
                 "description" "A list of urls to base the generated image on."
@@ -1822,6 +1857,21 @@
                          "description" "A short description of the content that should be replaced in the provided image."}
         ,},
        "required" ["image_url" "prompt" "search_prompt"]}}}
+    {"type" "function",
+     "function"
+     {"name" "image_edit",
+      "description" "Edit a single image using a text prompt and a reference image.",
+      "parameters"
+      {"type" "object",
+       "properties"
+       {"image_url" {"type" "string",
+                     "pattern" "^http.*"
+                     "description" "A reference image."}
+        "prompt" {"type" "string",
+                  "description" "The changes to be applied to the reference image."}
+        
+        ,},
+       "required" ["image_url" "prompt"]}}}
 
     {"type" "function",
      "function"
