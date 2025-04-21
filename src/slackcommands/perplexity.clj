@@ -39,7 +39,7 @@
 
 (defn chat-completions [{:keys [model messages]}]
   (let [model (or model
-                  "llama-3.1-sonar-huge-128k-online")
+                  "sonar")
         response (client/post "https://api.perplexity.ai/chat/completions"
                               {:accept :json
                                :form-params 
