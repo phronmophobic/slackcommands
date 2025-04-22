@@ -1239,7 +1239,7 @@
     "generate_video" #'generate-video
     "create_illusion" #'create-illusion
     "generate_3d_model" #'generate-3d-model
-    "image_edit_with_replacement" #'image-edit-with-replacement
+    ;; "image_edit_with_replacement" #'image-edit-with-replacement
     "image_edit" #'image-edit
     "text_to_speech" #'text-to-speech
     "transcribe" #'transcribe
