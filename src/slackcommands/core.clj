@@ -87,6 +87,9 @@
 
    (ANY "/flux" []
      ai/flux-image-command)
+   
+   (ANY "/ideogram" []
+     ai/ideogram-image-command)
 
    #_(GET "/aimages/ss.jpg"
          []
